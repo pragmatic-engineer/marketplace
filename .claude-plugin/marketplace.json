@@ -1,0 +1,26 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "pragmatic-engineer",
+  "description": "Claude Code plugin marketplace for pragmatic-engineer.",
+  "owner": {
+    "name": "Igor Santos",
+    "email": "2278164+igorjs@users.noreply.github.com"
+  },
+  "plugins": [
+    {
+      "name": "playbook",
+      "description": "A pragmatic Claude Code toolkit: opinionated skills, slash commands, subagents, and safety and state hooks.",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/pragmatic-engineer/playbook.git"
+      },
+      "category": "workflow",
+      "homepage": "https://github.com/pragmatic-engineer/playbook",
+      "license": "MIT",
+      "author": {
+        "name": "Igor Santos",
+        "email": "2278164+igorjs@users.noreply.github.com"
+      }
+    }
+  ]
+}
