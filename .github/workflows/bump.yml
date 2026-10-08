@@ -1,0 +1,67 @@
+name: bump
+
+on:
+  schedule:
+    - cron: "37 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the marketplace
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+
+      - name: Find the latest release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --repo pragmatic-engineer/playbook --json tagName --jq .tagName)"
+          latest="${tag#v}"
+          current="$(jq -r '.plugins[] | select(.name == "playbook") | .source.url' .claude-plugin/marketplace.json | sed -n 's#.*/download/v\([0-9][0-9.]*\)/.*#\1#p')"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+          if [ "$latest" = "$current" ]; then
+            echo "Marketplace is current at ${current}."
+            echo "outdated=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Marketplace is at ${current:-unknown}, latest release is ${latest}."
+            echo "outdated=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pin the new release
+        if: steps.release.outputs.outdated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.latest }}
+        run: shell/bump-marketplace.sh "$VERSION"
+
+      - name: Check the marketplace invariants
+        if: steps.release.outputs.outdated == 'true'
+        run: shell/check-marketplace.sh
+
+      - name: Commit and push
+        if: steps.release.outputs.outdated == 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.latest }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .claude-plugin/marketplace.json
+          git commit -m "playbook ${VERSION}"
+          git pull --rebase origin main
+          git push origin HEAD:main
