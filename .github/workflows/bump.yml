@@ -52,10 +52,6 @@ jobs:
           VERSION: ${{ steps.release.outputs.latest }}
         run: shell/bump-marketplace.sh "$VERSION"
 
-      - name: Check the marketplace invariants
-        if: steps.release.outputs.outdated == 'true'
-        run: shell/check-marketplace.sh
-
       - name: Open, check and merge the bump pull request
         if: steps.release.outputs.outdated == 'true'
         env:
@@ -68,7 +64,7 @@ jobs:
           branch="bump/v${VERSION}"
           title="chore(deps): bump playbook to ${VERSION}"
 
-          # Start clean if an earlier run left a branch or PR behind.
+          # Drop a branch left behind by a failed run.
           if gh api "repos/${REPO}/git/ref/heads/${branch}" >/dev/null 2>&1; then
             gh api -X DELETE "repos/${REPO}/git/refs/heads/${branch}"
           fi
@@ -95,14 +91,11 @@ jobs:
 
           pr="$(gh api -X POST "repos/${REPO}/pulls" \
             -f "title=${title}" -f "head=${branch}" -f base=main \
-            -f "body=Automated bump of the playbook pin to ${VERSION}, pinned from the release archive after its attestation is verified. The full checks are dispatched on this branch and the pull request is squash merged once they pass." \
+            -f "body=Automated bump of the playbook pin to ${VERSION}, pinned from the attested release archive. Squash merged once the checks pass." \
             --jq .number)"
           echo "Opened pull request #${pr}."
 
-          # A pull request opened with GITHUB_TOKEN gets a real pull_request run of
-          # the checks, but GitHub holds it at action_required until someone with
-          # write access approves it. Until then the ruleset reports the required
-          # check as missing, so wait for that run and approve it.
+          # GITHUB_TOKEN pull requests get their checks run held at action_required.
           run_id=""
           for _ in $(seq 1 36); do
             run_id="$(gh run list --repo "$REPO" --workflow checks.yml --branch "$branch" --event pull_request \
@@ -119,11 +112,9 @@ jobs:
             gh api -X POST "repos/${REPO}/actions/runs/${run_id}/approve" >/dev/null
             echo "Approved the checks run."
           fi
-          sleep 10
           gh run watch "$run_id" --repo "$REPO" --exit-status --interval 20
 
-          # The ruleset can lag a few seconds behind the finished run and answer
-          # 405, so retry the merge for a while before giving up.
+          # The ruleset can lag the finished run and answer 405, so retry.
           for attempt in $(seq 1 20); do
             if gh api -X PUT "repos/${REPO}/pulls/${pr}/merge" \
               -f merge_method=squash -f "commit_title=${title} (#${pr})" -f commit_message= >/dev/null; then

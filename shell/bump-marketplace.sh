@@ -6,7 +6,7 @@
 # Usage: bump-marketplace.sh <version-without-v> [marketplace-json]
 # Downloads playbook-plugin-<version>.zip, verifies its build provenance
 # attestation, then writes the release URL and the sha256 of those exact bytes
-# into the playbook entry. Requires gh, jq and shasum or sha256sum.
+# into the playbook entry. Requires gh, jq and shasum.
 set -euo pipefail
 
 version="${1:?usage: bump-marketplace.sh <version> [marketplace-json]}"
@@ -26,11 +26,7 @@ trap 'rm -rf "$work"' EXIT
 gh release download "v${version}" --repo "$repo" --pattern "$asset" --dir "$work"
 gh attestation verify "$work/$asset" --repo "$repo" >/dev/null
 
-if command -v sha256sum >/dev/null 2>&1; then
-  sha="$(sha256sum "$work/$asset" | cut -d' ' -f1)"
-else
-  sha="$(shasum -a 256 "$work/$asset" | cut -d' ' -f1)"
-fi
+sha="$(shasum -a 256 "$work/$asset" | cut -d' ' -f1)"
 if [[ ! "$sha" =~ ^[0-9a-f]{64}$ ]]; then
   echo "::error::could not compute a sha256 for ${asset}" >&2
   exit 1
