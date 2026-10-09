@@ -1,4 +1,4 @@
-name: bump
+name: release
 
 on:
   schedule:
@@ -9,11 +9,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: bump
+  group: release
   cancel-in-progress: false
 
 jobs:
-  bump:
+  release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
