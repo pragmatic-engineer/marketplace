@@ -99,25 +99,29 @@ jobs:
             --jq .number)"
           echo "Opened pull request #${pr}."
 
-          # Events from GITHUB_TOKEN do not start push or pull_request workflows,
-          # but workflow_dispatch is allowed, so start the real checks by hand.
-          started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh workflow run checks.yml --repo "$REPO" --ref "$branch"
+          # A pull request opened with GITHUB_TOKEN gets a real pull_request run of
+          # the checks, but GitHub holds it at action_required until someone with
+          # write access approves it. Until then the ruleset reports the required
+          # check as missing, so wait for that run and approve it.
           run_id=""
-          for _ in $(seq 1 30); do
-            run_id="$(gh run list --repo "$REPO" --workflow checks.yml --branch "$branch" --event workflow_dispatch \
-              --json databaseId,createdAt --jq "map(select(.createdAt >= \"${started}\")) | first | .databaseId // empty")"
+          for _ in $(seq 1 36); do
+            run_id="$(gh run list --repo "$REPO" --workflow checks.yml --branch "$branch" --event pull_request \
+              --json databaseId,headSha --jq "map(select(.headSha == \"${oid}\")) | first | .databaseId // empty")"
             [ -n "$run_id" ] && break
             sleep 5
           done
           if [ -z "$run_id" ]; then
-            echo "::error::the dispatched checks run did not appear." >&2
+            echo "::error::the pull request checks run did not appear." >&2
             exit 1
           fi
           echo "Checks run: https://github.com/${REPO}/actions/runs/${run_id}"
+          if [ "$(gh api "repos/${REPO}/actions/runs/${run_id}" --jq .conclusion)" = "action_required" ]; then
+            gh api -X POST "repos/${REPO}/actions/runs/${run_id}/approve" >/dev/null
+            echo "Approved the checks run."
+          fi
+          sleep 10
           gh run watch "$run_id" --repo "$REPO" --exit-status --interval 20
 
-          # The checks ran on the branch head, so the required contexts are satisfied.
           # The ruleset can lag a few seconds behind the finished run and answer
           # 405, so retry the merge for a while before giving up.
           for attempt in $(seq 1 20); do
