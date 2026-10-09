@@ -15,9 +15,11 @@ concurrency:
 jobs:
   bump:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - name: Check out the marketplace
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -54,22 +56,33 @@ jobs:
         if: steps.release.outputs.outdated == 'true'
         run: shell/check-marketplace.sh
 
-      - name: Commit the bump through the API so GitHub signs it
+      - name: Open, check and merge the bump pull request
         if: steps.release.outputs.outdated == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           VERSION: ${{ steps.release.outputs.latest }}
           FILE_PATH: .claude-plugin/marketplace.json
+          CHECKS: checks.yml
         run: |
           set -euo pipefail
+          branch="bump/v${VERSION}"
+          title="chore(deps): bump playbook to ${VERSION}"
+
+          # Start clean if an earlier run left a branch or PR behind.
+          if gh api "repos/${REPO}/git/ref/heads/${branch}" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/${REPO}/git/refs/heads/${branch}"
+          fi
+
+          # GitHub signs commits made through createCommitOnBranch.
           head="$(gh api "repos/${REPO}/git/ref/heads/main" --jq .object.sha)"
+          gh api -X POST "repos/${REPO}/git/refs" -f "ref=refs/heads/${branch}" -f "sha=${head}" >/dev/null
           jq -n \
-            --arg repo "$REPO" --arg head "$head" --arg msg "playbook ${VERSION}" \
+            --arg repo "$REPO" --arg branch "$branch" --arg head "$head" --arg msg "$title" \
             --arg path "$FILE_PATH" --arg content "$(base64 < "$FILE_PATH" | tr -d '\n')" \
             '{query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
               variables: {input: {
-                branch: {repositoryNameWithOwner: $repo, branchName: "main"},
+                branch: {repositoryNameWithOwner: $repo, branchName: $branch},
                 message: {headline: $msg},
                 expectedHeadOid: $head,
                 fileChanges: {additions: [{path: $path, contents: $content}]}
@@ -79,4 +92,33 @@ jobs:
             echo "::error::the API did not create the commit. main may have moved since this run started. The next run retries." >&2
             exit 1
           fi
-          echo "Created signed commit ${oid}."
+          echo "Created signed commit ${oid} on ${branch}."
+
+          pr="$(gh api -X POST "repos/${REPO}/pulls" \
+            -f "title=${title}" -f "head=${branch}" -f base=main \
+            -f "body=Automated bump of the playbook pin to ${VERSION}, pinned from the release archive after its attestation is verified. The full checks are dispatched on this branch and the pull request is squash merged once they pass." \
+            --jq .number)"
+          echo "Opened pull request #${pr}."
+
+          # Events from GITHUB_TOKEN do not start push or pull_request workflows,
+          # but workflow_dispatch is allowed, so start the real checks by hand.
+          started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run checks.yml --repo "$REPO" --ref "$branch"
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id="$(gh run list --repo "$REPO" --workflow checks.yml --branch "$branch" --event workflow_dispatch \
+              --json databaseId,createdAt --jq "map(select(.createdAt >= \"${started}\")) | first | .databaseId // empty")"
+            [ -n "$run_id" ] && break
+            sleep 5
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error::the dispatched checks run did not appear." >&2
+            exit 1
+          fi
+          echo "Checks run: https://github.com/${REPO}/actions/runs/${run_id}"
+          gh run watch "$run_id" --repo "$REPO" --exit-status --interval 20
+
+          # The checks ran on the branch head, so the required contexts are satisfied.
+          gh api -X PUT "repos/${REPO}/pulls/${pr}/merge" \
+            -f merge_method=squash -f "commit_title=${title} (#${pr})" -f commit_message= >/dev/null
+          echo "Merged pull request #${pr}."
