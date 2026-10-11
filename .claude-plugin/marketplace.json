@@ -12,8 +12,8 @@
       "description": "A pragmatic Claude Code toolkit: opinionated skills, slash commands, subagents, and safety and state hooks.",
       "source": {
         "source": "archive",
-        "url": "https://github.com/pragmatic-engineer/playbook/releases/download/v0.22.0/playbook-plugin-0.22.0.zip",
-        "sha256": "fc3e9769786c131a4a3f602fbc985d3e35b3f6e0a9717042b43f2aee7137831d"
+        "url": "https://github.com/pragmatic-engineer/playbook/releases/download/v0.23.0/playbook-plugin-0.23.0.zip",
+        "sha256": "5df6e0b8cd2585098afb76f58aa671fd0b4ddee9216d0ebef186e8c29b20072e"
       },
       "category": "workflow",
       "homepage": "https://github.com/pragmatic-engineer/playbook",
