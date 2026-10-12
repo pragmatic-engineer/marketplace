@@ -1,0 +1,126 @@
+name: bump
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Check out the marketplace
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Find the latest release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --repo pragmatic-engineer/playbook --json tagName --jq .tagName)"
+          latest="${tag#v}"
+          current="$(jq -r '.plugins[] | select(.name == "playbook") | .source.url' .claude-plugin/marketplace.json | sed -n 's#.*/download/v\([0-9][0-9.]*\)/.*#\1#p')"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+          if [ "$latest" = "$current" ]; then
+            echo "Marketplace is current at ${current}."
+            echo "outdated=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Marketplace is at ${current:-unknown}, latest release is ${latest}."
+            echo "outdated=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pin the new release
+        if: steps.release.outputs.outdated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.latest }}
+        run: shell/bump-marketplace.sh "$VERSION"
+
+      - name: Open, check and merge the bump pull request
+        if: steps.release.outputs.outdated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.release.outputs.latest }}
+          FILE_PATH: .claude-plugin/marketplace.json
+        run: |
+          set -euo pipefail
+          branch="bump/v${VERSION}"
+          title="chore(deps): bump playbook to ${VERSION}"
+
+          # Drop a branch left behind by a failed run.
+          if gh api "repos/${REPO}/git/ref/heads/${branch}" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/${REPO}/git/refs/heads/${branch}"
+          fi
+
+          # GitHub signs commits made through createCommitOnBranch.
+          head="$(gh api "repos/${REPO}/git/ref/heads/main" --jq .object.sha)"
+          gh api -X POST "repos/${REPO}/git/refs" -f "ref=refs/heads/${branch}" -f "sha=${head}" >/dev/null
+          jq -n \
+            --arg repo "$REPO" --arg branch "$branch" --arg head "$head" --arg msg "$title" \
+            --arg path "$FILE_PATH" --arg content "$(base64 < "$FILE_PATH" | tr -d '\n')" \
+            '{query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: {input: {
+                branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                message: {headline: $msg},
+                expectedHeadOid: $head,
+                fileChanges: {additions: [{path: $path, contents: $content}]}
+              }}}' > "$RUNNER_TEMP/payload.json"
+          oid="$(gh api graphql --input "$RUNNER_TEMP/payload.json" --jq '.data.createCommitOnBranch.commit.oid // empty')"
+          if [ -z "$oid" ]; then
+            echo "::error::the API did not create the commit. main may have moved since this run started. The next run retries." >&2
+            exit 1
+          fi
+          echo "Created signed commit ${oid} on ${branch}."
+
+          pr="$(gh api -X POST "repos/${REPO}/pulls" \
+            -f "title=${title}" -f "head=${branch}" -f base=main \
+            -f "body=Automated bump of the playbook pin to ${VERSION}, pinned from the attested release archive. Squash merged once the checks pass." \
+            --jq .number)"
+          echo "Opened pull request #${pr}."
+
+          # GITHUB_TOKEN pull requests get their checks run held at action_required.
+          run_id=""
+          for _ in $(seq 1 36); do
+            run_id="$(gh run list --repo "$REPO" --workflow checks.yml --branch "$branch" --event pull_request \
+              --json databaseId,headSha --jq "map(select(.headSha == \"${oid}\")) | first | .databaseId // empty")"
+            [ -n "$run_id" ] && break
+            sleep 5
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error::the pull request checks run did not appear." >&2
+            exit 1
+          fi
+          echo "Checks run: https://github.com/${REPO}/actions/runs/${run_id}"
+          if [ "$(gh api "repos/${REPO}/actions/runs/${run_id}" --jq .conclusion)" = "action_required" ]; then
+            gh api -X POST "repos/${REPO}/actions/runs/${run_id}/approve" >/dev/null
+            echo "Approved the checks run."
+          fi
+          gh run watch "$run_id" --repo "$REPO" --exit-status --interval 20
+
+          # The ruleset can lag the finished run and answer 405, so retry.
+          for attempt in $(seq 1 20); do
+            if gh api -X PUT "repos/${REPO}/pulls/${pr}/merge" \
+              -f merge_method=squash -f "commit_title=${title} (#${pr})" -f commit_message= >/dev/null; then
+              echo "Merged pull request #${pr}."
+              exit 0
+            fi
+            echo "Merge attempt ${attempt} was refused, retrying in 15s."
+            sleep 15
+          done
+          echo "::error::the pull request could not be merged." >&2
+          exit 1
