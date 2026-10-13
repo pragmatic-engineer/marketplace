@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Igor Santos
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "skills-checks"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Prose and structure checks for the playbook skills plugin"
+license = "Apache-2.0"
+
+[dev-dependencies]
+regex = "=1.13.1"
+
+[workspace]

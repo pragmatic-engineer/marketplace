@@ -1,24 +1,49 @@
-# pragmatic-engineer marketplace
+# skills
 
-Claude Code plugin marketplace for pragmatic-engineer.
+The Claude Code side of [playbook](https://github.com/pragmatic-engineer/playbook): the `playbook` plugin (skills, slash commands and subagents) and the `pragmatic-engineer` plugin marketplace that serves it.
 
-## Plugins
+The plugin works on its own. The `playbook` binary and its hooks live in the playbook repository and ship as the second plugin, `playbook-hooks`.
 
-- **playbook**: a pragmatic Claude Code toolkit (skills, slash commands, subagents, safety and state hooks). Source: [pragmatic-engineer/playbook](https://github.com/pragmatic-engineer/playbook).
+## Install
 
-## Use it
-
-```bash
-claude plugin marketplace add pragmatic-engineer/marketplace
+```sh
+claude plugin marketplace add pragmatic-engineer/skills
 claude plugin install playbook@pragmatic-engineer
+claude plugin install playbook-hooks@pragmatic-engineer
 ```
 
-The plugin installs over HTTPS, so no SSH keys are needed.
+Claude Code v2.1.224 or later is recommended. The second install line is optional. The full install guide, including the binary and the `install.sh` script, is in the [playbook repository](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/00-install.md).
 
-## Keeping the pin current
+## Layout
 
-The playbook entry points at the release archive `playbook-plugin-<version>.zip` and pins its sha256. The `release` workflow runs daily at 06:37 UTC and can be started by hand. If `pragmatic-engineer/playbook` has a newer release, it runs `shell/bump-marketplace.sh`. The script downloads the archive, verifies its build provenance attestation, and writes the URL and the sha256 of those exact bytes. The workflow commits the change to a `bump/v<version>` branch through the GitHub API and opens a pull request. It uses only the built-in `GITHUB_TOKEN`, so no secret is stored. GitHub signs the commit, so it shows as verified. A pull request opened with `GITHUB_TOKEN` gets its `pull_request` run held for approval, so the bump approves that run, waits for the `checks` workflow to pass, and then squash merges the pull request through the API, which `protect-main` allows because the required checks passed on the branch head. Don't edit the pin by hand.
+| Path | What it holds |
+|---|---|
+| `plugins/playbook/skills/` | Skills, one directory each |
+| `plugins/playbook/commands/` | The `/playbook:*` slash commands |
+| `plugins/playbook/agents/` | Subagent definitions |
+| `plugins/playbook/output-styles/` | Output styles |
+| `plugins/playbook/.claude-plugin/plugin.json` | The plugin manifest (name `playbook`) |
+| `.claude-plugin/marketplace.json` | The marketplace listing both plugins |
+| `checks/` | A small Rust crate that tests the prose and structure of the plugin |
+| `shell/` | Scripts that guard and update the marketplace file |
+
+## Checks
+
+```sh
+cd checks && cargo test --locked
+shell/check-marketplace.sh
+```
+
+`shell/check-marketplace.sh` keeps installs keyless: a plugin source is either a path in this repository, or an https url or archive, and an archive carries a sha256.
+
+## The hooks plugin pin
+
+`playbook-hooks` is versioned with the playbook binary. Its entry points at the release archive `playbook-hooks-plugin-<version>.zip` in `pragmatic-engineer/playbook` and pins its sha256. The `pin-hooks` workflow runs daily at 06:37 UTC and can be started by hand. If a newer playbook release carries the archive, it runs `shell/bump-marketplace.sh`, which downloads the archive, verifies its build provenance attestation and writes the URL and the sha256 of those exact bytes. The workflow commits the change to a `bump/hooks-v<version>` branch through the GitHub API, opens a pull request, approves the held checks run, waits for it to pass and squash merges. It uses only the built-in `GITHUB_TOKEN`. Don't edit the pin by hand.
+
+## History
+
+The plugin files carry their history from the playbook repository. Commit hashes before the import differ from the ones in playbook because the history was rewritten to keep only these paths.
 
 ## License
 
-Apache-2.0. See `LICENSE`.
+Apache-2.0. See `LICENSE` and `NOTICE`.

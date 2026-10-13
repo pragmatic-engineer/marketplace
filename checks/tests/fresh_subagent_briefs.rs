@@ -31,17 +31,6 @@ fn briefs_reference_exists_and_has_toc() {
 }
 
 #[test]
-fn system_prompt_requires_subagent_type_for_fan_out() {
-    let s = read("prompts/SYSTEM_PROMPT.md");
-    let line = s
-        .lines()
-        .find(|l| l.starts_with("**Parallel work**"))
-        .expect("parallel work line");
-    assert!(line.contains("subagent_type"));
-    assert!(line.contains("brief"));
-}
-
-#[test]
 fn plan_and_implement_name_the_agent_type() {
     let plan = read("commands/plan.md");
     assert!(plan.contains("`subagent_type: Explore`"));
@@ -131,6 +120,4 @@ fn the_cap_never_applies_to_the_output_file_or_drops_findings() {
     assert!(skill
         .contains("Return: status, findings as file:line, output path; at most about 300 words"));
     assert!(skill.contains("Write your full report to <absolute path>."));
-    let sp = read("prompts/SYSTEM_PROMPT.md");
-    assert!(sp.contains("about 300 words"));
 }
