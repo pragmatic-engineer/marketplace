@@ -12,13 +12,7 @@ Fix one small bug end to end: a failing test, the smallest change that makes it 
 
 ## Step 0: Read the run mode
 
-Do this first, before Step 1. Read the mode from the CLI:
-
-```bash
-playbook run-context --args "$ARGUMENTS"
-```
-
-The JSON has `mode`, `source`, `hook_mode` and `warning`. Read `playbook skill ref delegating-subagents run-context` and follow it for the warning, exit 2, any other failure, and an outdated binary.
+Do this first, before Step 1. Read the run mode. Intent: run-mode. If the session's tool map (printed at session start) lists it, use that command with this command's arguments, and follow the `run-context` reference of the `playbook:delegating-subagents` skill for its warning, exit 2 and failures. Otherwise do this: if `$ARGUMENTS` has both `--auto` and `--ask`, stop with one line: "--auto and --ask conflict; pass one." If it has `--auto`, the mode is `auto`. In every other case the mode is `ask`, the default.
 
 - **`ask` mode:** behave exactly as this file describes. Every step marked "if mode is ask" stays.
 - **`auto` mode:** take the recommended answer at each of those steps and keep going. Record every answer you chose yourself in an Assumptions list and print it in the final output. Never force-push.
@@ -55,12 +49,7 @@ Check the size of the change as it grows, using the thresholds from Step 4. Run 
 
 ## Step 4: Escalate to /playbook:plan
 
-Read the two thresholds:
-
-```bash
-playbook config get fix.maxFiles
-playbook config get fix.maxLines
-```
+Read the two thresholds, `fix.maxFiles` and `fix.maxLines`. Intent: config-get. If the session's tool map lists it, use that command for each key. Otherwise do this: use the defaults, `fix.maxFiles` 3 and `fix.maxLines` 500.
 
 Escalate when any one of these is true:
 

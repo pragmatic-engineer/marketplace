@@ -84,7 +84,7 @@ A second, distinct category: phrases that perform depth or authority instead of 
 
 ## Loading the references
 
-This file holds the universal rules. Load the reference that matches the prose you write, with `playbook skill ref writing-style <name>`, which prints the file path to read:
+This file holds the universal rules. Load the reference that matches the prose you write: read `references/<name>.md` next to this file.
 
 - Commit message, PR title or PR body: `commits-and-prs`.
 - Review comment, reply to feedback, or issue or PR comment on GitHub: `github-review-comments`, plus `examples` and `imperfections`.
