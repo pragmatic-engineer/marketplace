@@ -240,3 +240,52 @@ fn the_run_context_reference_carries_the_run_mode_intent() {
         "run-context.md must name the run-mode intent, the commands point at it"
     );
 }
+
+fn markdown_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            markdown_files(&path, out);
+        } else if path.extension().is_some_and(|e| e == "md") {
+            out.push(path);
+        }
+    }
+}
+
+/// Every `Intent: <id>` the prose names is listed in intents.json, and every
+/// `skills/<skill>/references/<name>.md` path it points at exists.
+#[test]
+fn intent_ids_and_reference_paths_in_the_prose_resolve() {
+    let root = Path::new(env!("PLAYBOOK_REPO_ROOT"));
+    let listed = fs::read_dir(root)
+        .ok()
+        .and_then(|_| {
+            ["../../intents.json", "../intents.json", "intents.json"]
+                .iter()
+                .find_map(|p| fs::read_to_string(root.join(p)).ok())
+        })
+        .expect("intents.json should sit above the plugin root");
+    let intent = regex::Regex::new(r"Intent: ([a-z][a-z0-9-]*)").unwrap();
+    let path =
+        regex::Regex::new(r"skills/([a-z][a-z-]*)/references/([a-z][a-z0-9-]*)\.md").unwrap();
+    let mut files = Vec::new();
+    for dir in ["commands", "skills"] {
+        markdown_files(&root.join(dir), &mut files);
+    }
+    let mut bad = Vec::new();
+    for file in files {
+        let text = fs::read_to_string(&file).unwrap();
+        for cap in intent.captures_iter(&text) {
+            if !listed.contains(&format!("\"{}\"", &cap[1])) {
+                bad.push(format!("{}: unknown intent {}", file.display(), &cap[1]));
+            }
+        }
+        for cap in path.captures_iter(&text) {
+            let target = root.join(format!("skills/{}/references/{}.md", &cap[1], &cap[2]));
+            if !target.is_file() {
+                bad.push(format!("{}: missing {}", file.display(), target.display()));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}

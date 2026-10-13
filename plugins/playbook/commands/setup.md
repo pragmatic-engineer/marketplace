@@ -8,19 +8,15 @@ effort: low
 
 # Setup
 
-Wire the always-on safety guards and seed or merge settings.json. Optionally
-add the `playbook` shell wrapper (it follows `playbook cc` into a new worktree) and install the custom system prompt. Each step
+Wire the optional playbook binary, once it is installed: the always-on safety guards, settings.json, and the tool map printed at session start. Optionally
+add the `playbook` shell wrapper (it follows the session launcher into a new worktree) and install the custom system prompt. Each step
 is idempotent; re-running /playbook:setup is safe and only changes what is missing.
+
+The plugin's skills and commands work without the binary: where a step can use a tool, they fall back to plain git, gh and file steps. This command, like /playbook:doctor, needs the binary because it is the binary's wiring step. Install the binary first with the hint that /playbook:doctor prints for layer 6.
 
 ## Step 0: Read the run mode
 
-Do this first. If `command -v playbook` finds nothing, stop with one line: "playbook is not on PATH. If you just installed it, open a new terminal and run /playbook:setup again; otherwise run `curl -fsSL https://raw.githubusercontent.com/pragmatic-engineer/playbook/main/install.sh | bash` first." Otherwise read the mode from the CLI:
-
-```bash
-playbook run-context --args "$ARGUMENTS"
-```
-
-The JSON has `mode`, `source`, `hook_mode` and `warning`. Read `playbook skill ref delegating-subagents run-context` and follow it for the warning, exit 2, any other failure, and an outdated binary.
+Do this first. If `command -v playbook` finds nothing, stop with one line: "playbook is not on PATH. If you just installed it, open a new terminal and run /playbook:setup again; otherwise run `curl -fsSL https://raw.githubusercontent.com/pragmatic-engineer/playbook/main/install.sh | bash` first." Otherwise read the run mode for this run's arguments. Intent: run-mode. If the session's tool map (printed at session start) lists it, use that command, then read `skills/delegating-subagents/references/run-context.md` in this plugin and follow it for the warning, the both-flags exit, any other failure, and an outdated binary. Otherwise do this: if `$ARGUMENTS` holds both `--auto` and `--ask`, stop with one line saying they conflict; `--auto` or `--ask` alone sets the mode; with neither, use `PLAYBOOK_MODE` when it is `auto` or `ask`; else the mode is `ask`.
 
 If the mode is `auto`, stop here. Print one line and nothing else: "/playbook:setup needs a person to run it, because it changes your global settings and shell files outside this repo." Do not run any later step.
 
@@ -46,12 +42,12 @@ with these two questions:
 **Question 1**
 
 - header: "Aliases"
-- question: "Add the playbook shell wrapper for playbook cc and playbook ccd?"
+- question: "Add the playbook shell wrapper for the session launchers?"
 - options:
   - label: "Yes (Recommended)"
-    description: "Adds a playbook shell function so playbook cc can leave you in a new worktree. Bash and zsh both supported."
+    description: "Adds a playbook shell function so the session launcher can leave you in a new worktree. Bash and zsh both supported."
   - label: "No"
-    description: "Skip the wrapper. `playbook cc` still works, it just will not cd into a new worktree. Skills, commands, and hooks still work."
+    description: "Skip the wrapper. The launcher still works, it just will not cd into a new worktree. Skills, commands, and hooks still work."
 
 **Question 2**
 
@@ -59,7 +55,7 @@ with these two questions:
 - question: "Install the custom system prompt?"
 - options:
   - label: "Yes (Recommended)"
-    description: "Installs the senior-engineer persona and rules; playbook cc loads it each session. Recommended for the full experience."
+    description: "Installs the senior-engineer persona and rules; the session launcher loads it each session. Recommended for the full experience."
   - label: "No"
     description: "Skip the persona. The plugin content still works without it."
 
