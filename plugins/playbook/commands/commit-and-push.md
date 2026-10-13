@@ -45,7 +45,7 @@ Combined flags are fine: `-Au`, `-a -u`, etc. No flags means commit only what is
 
 ## Step 0: Read the run mode
 
-Do this first. Read the run mode. Intent: mode-status. If the session's tool map (printed at session start) lists it, use that command, passing `--auto` or `--ask` through when the arguments hold one. It reports `mode` (`ask` or `auto`), `source`, `hook_mode` and `warning`; if `warning` is not empty, print it once. If it fails, do not stop and do not retry: run in ask mode and print one line. Otherwise do this: if the arguments hold both `--auto` and `--ask`, stop with one line: "--auto and --ask conflict; pass one." `--auto` means auto mode. Anything else means ask mode, the default.
+Do this first. Read the run mode. Intent: mode-status. If the session's tool map (printed at session start) lists it, use that command, with `--json`, adding `--flag auto` or `--flag ask` when the arguments hold `--auto` or `--ask` (check for both first and stop on a conflict). It reports `mode` (`ask` or `auto`), `source`, `hook_mode` and `warning`; if `warning` is not empty, print it once. If it fails, do not stop and do not retry: run in ask mode and print one line. Otherwise do this: if the arguments hold both `--auto` and `--ask`, stop with one line: "--auto and --ask conflict; pass one." `--auto` means auto mode. Anything else means ask mode, the default.
 
 - **`ask` mode:** behave exactly as this file describes.
 - **`auto` mode:** follow the Auto path below, and treat Step 4 as auto.
@@ -109,7 +109,7 @@ Commit, rebase and push. Intent: commit-run. If the session's tool map lists it,
 
 1. Write the message to a file in the scratchpad through a quoted heredoc.
 2. Commit with `git commit [--amend] [--signoff] [--gpg-sign] --file <file>`. Add `--signoff` unless `--no-signoff` was passed, the `commit.signOff` setting is `false` (read it when the tool map lists config-get; the default is `true`), the message already has a `Signed-off-by` line, or an executable `prepare-commit-msg` or `commit-msg` hook writes one itself (a hook that only checks for the trailer does not count). Add `--gpg-sign` whenever `git config --get user.signingkey` prints a key. If the commit fails (a hook), stop and push nothing.
-3. Rebase when behind: take `origin/main`, else `origin/master` (whichever `git rev-parse --verify` finds). Run `git fetch origin <name> --quiet`; if `git rev-list --count HEAD..<base>` is above 0, run `git rebase <base> --quiet`. On a conflict, run `git rebase --abort` and say "Run 'git rebase <base>' manually."
+3. Rebase when behind: take `origin/main`, else `origin/master` (whichever `git rev-parse --verify` finds). Run `git fetch origin <name> --quiet`; if `git rev-list --count HEAD..<base>` is above 0, run `git rebase <base> --quiet`. If neither ref exists, skip items 3 and 4 and push. If the rebase cannot start or hits a conflict, run `git rebase --abort` if one is in progress, and say "Run 'git rebase <base>' manually."
 4. If `git rev-list --merges <base>..HEAD` lists anything, stop: "ERROR: <n> merge commit(s) on this branch. Run 'git rebase <base>' to remove them."
 5. Push with `git push origin HEAD:refs/heads/<branch>`:
    - Auto mode, and `git ls-remote --exit-code --heads origin <branch>` exits 2 (no remote branch): push plainly.

@@ -448,13 +448,12 @@ fn every_command_file_has_a_row_in_the_table_and_the_reverse() {
 }
 
 /// Step 0 reads the run mode through the `run-mode` or `mode-status` intent,
-/// or points at the run-context reference that explains it.
+/// (the older call forms still count).
 fn reads_mode(text: &str) -> bool {
     text.contains("playbook mode status")
         || text.contains("playbook run-context")
         || text.contains("Intent: run-mode")
         || text.contains("Intent: mode-status")
-        || text.contains("references/run-context.md")
 }
 
 #[test]
@@ -1162,7 +1161,11 @@ fn fix_reads_both_thresholds_through_the_config_get_intent() {
     // Act
     let missing: Vec<&str> = ["fix.maxFiles", "fix.maxLines"]
         .into_iter()
-        .filter(|key| !(text.contains("Intent: config-get") && text.contains(*key)))
+        .filter(|key| {
+            !text
+                .lines()
+                .any(|l| l.contains("Intent: config-get") && l.contains(*key))
+        })
         .collect();
 
     // Assert
