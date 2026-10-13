@@ -22,7 +22,7 @@ fn both_commands_run_the_stack_check() {
             "{name}: no stack step"
         );
         assert!(
-            text.contains("playbook skill ref grounding-review stack-review"),
+            text.contains("skills/grounding-review/references/stack-review.md"),
             "{name}: stack reference not loaded"
         );
     }
@@ -31,7 +31,7 @@ fn both_commands_run_the_stack_check() {
 #[test]
 fn the_stack_reference_names_neighbours_and_the_real_base() {
     let text = read("skills/grounding-review/references/stack-review.md");
-    assert!(text.contains("playbook pr stack"));
+    assert!(text.contains("Intent: pr-stack"));
     assert!(text.contains("Below: "), "no below line");
     assert!(text.contains("Above: "), "no above line");
     assert!(text.contains("Own diff base: <base>"), "no base line");

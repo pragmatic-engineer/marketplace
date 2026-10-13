@@ -20,7 +20,7 @@ Let B(n) be the blocking set of round n. From round 2, round n made **no progres
 
 ## STUCK
 
-Two consecutive rounds with no progress (so round 3 at the earliest) end the phase as **STUCK**, which is not FAIL and not INCONCLUSIVE. Record it with `playbook gate record <slug> <command> <phase> - --stuck`, which stores STUCK in place of the report's FAIL. `playbook gate check` blocks on STUCK exactly as on FAIL.
+Two consecutive rounds with no progress (so round 3 at the earliest) end the phase as **STUCK**, which is not FAIL and not INCONCLUSIVE. Record it as STUCK. Intent: gate-record. If the session's tool map (printed at session start) lists it, use that command with `--stuck`, which stores STUCK in place of the report's FAIL. Otherwise do this: write STUCK on the phase's checklist line (see `quality-gate.md`). The gate check blocks on STUCK exactly as on FAIL.
 
 Reaching round 5 with a FAIL stops the phase as FAIL, because progress never stalled.
 
@@ -28,4 +28,4 @@ Reaching round 5 with a FAIL stops the phase as FAIL, because progress never sta
 
 On STUCK or a FAIL at the cap, stop and give: the remaining blocking findings (title and anchor), the rounds used, and one line per revision on what was tried. The next manual pass starts from that list. In `--auto`, do not save; report it. Interactively, hand the report to the user. `--force` is unchanged.
 
-`gate record` prints the round number it just stored, and the history is kept in the `gate_rounds` table, so a cap that binds can be counted later.
+The gate recording tool prints the round number it just stored and keeps the history in its `gate_rounds` table, so a cap that binds can be counted later. Without it, the checklist's round numbers are the only count.

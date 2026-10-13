@@ -70,7 +70,7 @@ Measured on the seeded-defect fixture (`crates/cli/tests/fixtures/bench/reviewer
 
 ## Implementer brief builder
 
-An implementer brief (the per-Work-Unit file from `playbook plan brief`) also carries: the excerpts, with line numbers, of the files the step edits and of the one or two neighbours it must match (an interface it implements, the test it extends), the scoped verify command, and the limit: "The excerpts above are the context you need. Read a file only to edit it or when the excerpt cannot settle a question. Do not explore the repository." The Edit tool needs the file read first, so a file the step changes is still read; the saving is the exploratory reads around it.
+An implementer brief is the per-Work-Unit file. Intent: work-unit-briefs. If the session's tool map (printed at session start) lists it, use that command to write it. Otherwise do this: write it by hand from the plan's Work Unit (its files, changes, test scenarios and done-when). Either way it also carries: the excerpts, with line numbers, of the files the step edits and of the one or two neighbours it must match (an interface it implements, the test it extends), the scoped verify command, and the limit: "The excerpts above are the context you need. Read a file only to edit it or when the excerpt cannot settle a question. Do not explore the repository." The Edit tool needs the file read first, so a file the step changes is still read; the saving is the exploratory reads around it.
 
 ## Checks before dispatch
 

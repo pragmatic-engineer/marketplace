@@ -454,6 +454,7 @@ fn reads_mode(text: &str) -> bool {
         || text.contains("playbook run-context")
         || text.contains("Intent: run-mode")
         || text.contains("Intent: mode-status")
+        || text.contains("references/run-context.md")
 }
 
 #[test]

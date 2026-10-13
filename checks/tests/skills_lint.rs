@@ -149,7 +149,7 @@ fn lens_reviewers_do_not_load_the_orchestrator_sections() {
     let orch = read_skill("grounding-review/references/orchestrator.md");
     assert!(orch.contains("## Review Report Format"));
     assert!(orch.contains("## Verification Sweep (MUST)"));
-    assert!(skill.contains("playbook skill ref grounding-review orchestrator"));
+    assert!(skill.contains("references/orchestrator.md"));
 }
 
 #[test]
@@ -230,4 +230,13 @@ fn every_skill_ref_pointer_resolves_to_a_reference_file() {
     }
     // The pointers are being retired in favour of relative paths, so no minimum.
     let _ = checked;
+}
+
+#[test]
+fn the_run_context_reference_carries_the_run_mode_intent() {
+    let text = read_skill("delegating-subagents/references/run-context.md");
+    assert!(
+        text.contains("Intent: run-mode"),
+        "run-context.md must name the run-mode intent, the commands point at it"
+    );
 }
