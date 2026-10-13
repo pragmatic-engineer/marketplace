@@ -96,6 +96,10 @@
     "required": false
   },
   {
+    "intent": "plan-cleanup",
+    "required": false
+  },
+  {
     "intent": "plans-dir",
     "required": false
   },

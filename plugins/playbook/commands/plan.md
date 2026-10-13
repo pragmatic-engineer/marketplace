@@ -508,15 +508,7 @@ Do NOT save until the user explicitly approves. If they request changes, revise 
 Only after the user approves. The plans directory lives outside this repo checkout (`$HOME/.config/playbook/repos/<owner>/<repo>/plans/`, one folder per repo shared by every worktree, resolved in Step 0), not gitignored: there is nothing repo-local left to ignore.
 
 1. Save the plan to `$PLANS_DIR/<topic-slug>.md` and the gate reports to `$PLANS_DIR/<topic-slug>-quality.md`.
-2. Clear the scratch files this run left in the plans folder: the checkpoint `<topic-slug>.checkpoint.md`, its lock directory `<topic-slug>.checkpoint.md.lock`, the shared gate source `<topic-slug>.gate-source.md` and every per-phase snapshot `<topic-slug>.gate-source.<phase>.md`. They would otherwise linger in the plans folder. Touch only those names: `<topic-slug>.md` and `<topic-slug>-quality.md` stay. Delete them with:
-
-   ```bash
-   d="<plans-dir>"; s="<topic-slug>"
-   rm -f "$d/$s.checkpoint.md" "$d/$s".gate-source*.md
-   rmdir "$d/$s.checkpoint.md.lock" 2>/dev/null
-   ```
-
-   If a guard hook refuses the delete because the folder is outside the repo, leave the files and list their paths in the report.
+2. Clear the scratch files this run left in the plans folder: the checkpoint `<topic-slug>.checkpoint.md`, its lock directory `<topic-slug>.checkpoint.md.lock`, the shared gate source `<topic-slug>.gate-source.md` and every per-phase snapshot `<topic-slug>.gate-source.<phase>.md`. They would otherwise linger in the plans folder. Touch only those names: `<topic-slug>.md` and `<topic-slug>-quality.md` stay. Intent: plan-cleanup. If the session's tool map lists it, use that command with `<topic-slug>`; it removes exactly those names, is safe to repeat, and exits 0 when there is nothing to remove. Otherwise do this: leave the files where they are and list their paths in the report, so the user can delete them. Do not delete them with `rm`.
 3. If a project store is present at `~/.config/playbook/memory/<owner>/<repo>/`, persist the plan's accepted key decisions (from both the divergent and convergent phases) as project memory facts (`type: project`, `anchors:` to the files they touch). The graph rebuilds automatically on fact save via the PostToolUse hook. Otherwise skip.
 4. Tell the user:
    - "Saved to `<plans-dir>/<topic-slug>.md`" (`<plans-dir>` is the plans folder Step 0 resolved).
