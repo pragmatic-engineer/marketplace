@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Pins the rule that both review commands ask what to post. Only an
-//! explicit `--self` or `--no-post`, or auto mode (which prints the post
-//! command instead), skips the question. Naming no PR or reviewing your own
-//! PR must not skip it.
+//! explicit `--self` or `--no-post` skips the question. Auto mode does not
+//! change posting, and naming no PR or reviewing your own PR must not skip it.
 
 use std::fs;
 use std::path::PathBuf;
