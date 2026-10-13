@@ -70,7 +70,7 @@ What a whole-stack review does:
 - **Merged PRs are never reviewed or commented on.** A PR closed without merging is skipped.
 - **Findings go to the PR that holds the line.** `playbook pr stack map` matches each finding's `file:line` against the diff hunks of the open PRs and creates one pending review per PR. A finding no open PR changes is shown in the report and not posted.
 - **Safe against change.** If a PR was pushed to, retargeted or closed after the review started, its findings are held back and listed as stale.
-- **Cost guard.** The command asks again before it starts when the open PRs exceed `review.stackMaxPrs` (default 6) or `review.stackMaxLines` (default 3000). See [Config keys](04-config-keys.md).
+- **Cost guard.** The command asks again before it starts when the open PRs exceed `review.stackMaxPrs` (default 6) or `review.stackMaxLines` (default 3000). See [Config keys](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/04-config-keys.md).
 
 ## How findings are graded
 
@@ -96,7 +96,7 @@ For each comment you choose `[F]ix`, `[R]eply`, `[B]oth`, `[S]kip`, `[Q]uit` or 
 
 ## Auto mode
 
-In `ask` mode, the default, nothing changes. Pass `--auto` or `--ask` to override the mode for one run. See [Auto mode](05-auto-mode.md).
+In `ask` mode, the default, nothing changes. Pass `--auto` or `--ask` to override the mode for one run. See [Auto mode](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/05-auto-mode.md).
 
 - `/playbook:commit-and-push` commits and pushes without asking. It never force-pushes. A push that would need a force is left on the local branch and reported, so you decide how to publish it.
 - `/playbook:quick-review` and `/playbook:deep-review` run as `--self`. They report locally and never post a review to GitHub, because a posted review speaks as you.
@@ -104,7 +104,7 @@ In `ask` mode, the default, nothing changes. Pass `--auto` or `--ask` to overrid
 
 ## PR and commit settings
 
-Six keys shape the PR flow and the commit trailer. Read one with `playbook config get <key>`. Set it with `playbook config set [--global|--org] <key> <value>`: no flag writes the repo tier. Repo wins over org, and org over global. All keys: [Config keys](04-config-keys.md).
+Six keys shape the PR flow and the commit trailer. Read one with `playbook config get <key>`. Set it with `playbook config set [--global|--org] <key> <value>`: no flag writes the repo tier. Repo wins over org, and org over global. All keys: [Config keys](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/04-config-keys.md).
 
 | Key | Default | What it does |
 |---|---|---|

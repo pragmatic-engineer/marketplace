@@ -83,7 +83,7 @@ It runs on Sonnet and never edits files itself. It hands each Work Unit to a sub
 
 ### Auto
 
-`--auto` picks the recommended strategy, runs every Segment, and opens the PR set once the adversarial review passes. A gate FAIL blocks unless you pass `--force`. Auto never force-pushes, and it never picks the `land` boundary, so `--boundary=land` must be explicit. See [Auto mode](05-auto-mode.md).
+`--auto` picks the recommended strategy, runs every Segment, and opens the PR set once the adversarial review passes. A gate FAIL blocks unless you pass `--force`. Auto never force-pushes, and it never picks the `land` boundary, so `--boundary=land` must be explicit. See [Auto mode](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/05-auto-mode.md).
 
 ## Fix a small bug
 
@@ -119,6 +119,6 @@ With the stacked default, S1 runs on `feat/json-export-s1` off main: WU-0 first,
 
 ## See also
 
-- [Decisions and memory](03-decisions-and-memory.md): when to route to `/playbook:adr`.
+- [Decisions and memory](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/03-decisions-and-memory.md): when to route to `/playbook:adr`.
 - [Review and PR flow](02-review-and-pr-flow.md): reviewing the branch afterward.
 - [Docs index](https://github.com/pragmatic-engineer/playbook/blob/main/docs/index.md)
