@@ -24,6 +24,7 @@ Claude Code v2.1.224 or later is recommended. The second install line is optiona
 | `plugins/playbook/output-styles/` | Output styles |
 | `plugins/playbook/.claude-plugin/plugin.json` | The plugin manifest (name `playbook`) |
 | `.claude-plugin/marketplace.json` | The marketplace listing both plugins |
+| `docs/` | Authoring guides for skills, commands and agents, the two command guides, and the policy table |
 | `checks/` | A small Rust crate that tests the prose and structure of the plugin |
 | `shell/` | Scripts that guard and update the marketplace file |
 
