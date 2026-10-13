@@ -12,7 +12,7 @@ Turn a raw idea, a settled direction, or a ticket into a verified, self-containe
 
 Invoked as `/playbook:plan`. The remaining arguments are an optional idea seed, ticket id, or file path.
 
-The terminal state is a verified implementation plan at `$(playbook path plans)/<topic-slug>.md`, ready to run with `/playbook:implement`. Do NOT write real code, scaffold anything, or start the implementation here. The one narrow exception is Step 5.5's optional validation spike: throwaway code to check a single uncertain premise, never part of the saved plan's content and never the start of the real build.
+The terminal state is a verified implementation plan at `$PLANS_DIR/<topic-slug>.md` (Step 0 resolves `$PLANS_DIR`), ready to run with `/playbook:implement`. Do NOT write real code, scaffold anything, or start the implementation here. The one narrow exception is Step 5.5's optional validation spike: throwaway code to check a single uncertain premise, never part of the saved plan's content and never the start of the real build.
 
 ## Help
 
@@ -59,7 +59,7 @@ from an earlier, interrupted run on the same topic and offers to resume it.
 Confirms a problem statement before proposing 2-3 approaches, gets your
 approval on the chosen design, then continues, in the same session, into the
 Work Unit and Segment interview, the 3-phase quality gate, and one saved plan
-file at $(playbook path plans)/<topic-slug>.md.
+file at ~/.config/playbook/repos/<owner>/<repo>/plans/<topic-slug>.md.
 ```
 
 ## Core Rules (MUST)
@@ -89,15 +89,19 @@ Strip `--ticket <id>`, `--depth <n>`, `--adr`, `--auto-design`, `--auto`, and `-
 
 ### Step 0: Read the run mode, load skills and check for an in-progress checkpoint
 
-**Read the run mode (MUST, first).** Run:
+**Read the run mode (MUST, first).** Resolve whether this run is `ask` or `auto`. Intent: run-mode. If the session's tool map (printed at session start) lists it, use that command with this command's name (`plan`) and `$ARGUMENTS`, and follow `../skills/delegating-subagents/references/run-context.md` (relative to this file) for its output: the warning, the effort ceiling, a conflicting-flags exit, and any other failure. Otherwise do this: the mode is `auto` when the arguments carry `--auto` or `--auto-design`, and `ask` when they carry `--ask`. When both `--ask` and an auto flag are given, stop with one line saying they conflict. With neither, run `printenv PLAYBOOK_MODE` and use its value when it is `ask` or `auto`; in every other case the mode is `ask`. There is no effort ceiling on this path.
+
+**Routing.** Where you choose what to spawn, pick the model for a `design` task. Intent: route-model. If the session's tool map lists it, use that command for the `design` kind and follow its `action` under the `routing.escalate` gate: on `ask` stop and ask the user, on `downgraded` (`deny`) use the lower tier it names, and in auto mode (`auto`) proceed and log the assumption. If the command fails, carry on. Otherwise do this: spawn each agent on the model its own agent file sets, and carry on.
+
+**Resolve the plans folder.** Plans live outside the checkout, in one folder per repo shared by every worktree. Intent: plans-dir. If the session's tool map lists it, use that command and take the path it prints. Otherwise do this:
 
 ```bash
-playbook run-context --command plan --args "$ARGUMENTS"
+slug=$(git remote get-url origin | sed -E 's#\.git/?$##; s#^[A-Za-z]+://##; s#^[^@/]*@##; s#^[^/:]+[/:]##')
+[ -n "$slug" ] || { echo "no origin remote"; exit 1; }
+mkdir -p "$HOME/.config/playbook/repos/$slug/plans" && echo "$HOME/.config/playbook/repos/$slug/plans"
 ```
 
-The JSON has `mode`, `source`, `hook_mode`, `warning` and `ceiling`. Read `playbook skill ref delegating-subagents run-context` and follow it for the warning, the ceiling, exit 2, any other failure, and an outdated binary.
-
-**Routing.** Where you choose what to spawn, also run `playbook route design --json` and follow its `action` under the `routing.escalate` gate: on `ask` stop and ask the user, on `downgraded` (`deny`) use the lower tier it names, and in auto mode (`auto`) proceed and log the assumption. If the command fails, carry on.
+The `sed` drops the `.git` suffix, the scheme, any `user@` and the host, leaving `<owner>/<repo>`. With no `origin` remote, stop and say the plans folder needs one. This file calls the printed absolute path `$PLANS_DIR` in prose and `<plans-dir>` in commands. Shell variables do not survive between `Bash` calls, so write the path out in full in each later command.
 
 - **`ask` mode:** behave exactly as this file describes. Every question below stays.
 - **`auto` mode:** take the recommended answer at each decision instead of asking, within the limits in Autonomous Mode below, and record every answer you chose yourself in an **Assumptions** list. Print that list in the final output. Auto mode that comes from the environment or the repo config acts like plain `--auto`. Only the `--auto-design` flag, given on the command line, self-answers the design.
@@ -106,30 +110,30 @@ The JSON has `mode`, `source`, `hook_mode`, `warning` and `ceiling`. Read `playb
 
 **Derive `<topic-slug>` (MUST, before anything else).** Kebab-case the plain-text idea seed as typed, or, in ticket mode, the ticket id itself (e.g. `PROJ-123` becomes `proj-123`), the same convention `commands/adr.md:21`'s `{kebab-title}` filename uses. Ticket mode derives the slug from the id, not the ticket's title, because Step 1.5 (which pulls the title) runs after this check; using the id keeps the slug available before the ticket is fetched, and it stays the same value for the rest of the session, including Step 12's save. This is the same slug the checkpoint file and the final plan file both use.
 
-**Check for a checkpoint.** This command's own bespoke checkpoint/resume mechanism, not the generic `/playbook:session-handoff` (that one is keyed by directory and holds a free-text summary, not a structured plan in progress keyed by topic). Resolve the plans directory and look for a matching checkpoint:
+**Check for a checkpoint.** This command's own bespoke checkpoint/resume mechanism, not the generic `/playbook:session-handoff` (that one is keyed by directory and holds a free-text summary, not a structured plan in progress keyed by topic). Look for a matching checkpoint. Intent: checkpoint. If the session's tool map lists it, use that command with `<topic-slug>`: it prints the checkpoint path and `found` or `not-found`, and exits 1 on a bad slug or when the repo has no `origin` remote. Otherwise do this: the checkpoint is `$PLANS_DIR/<topic-slug>.checkpoint.md`. The slug may hold only letters, digits, `-`, `_` and `.`, and may not start with a dot. Check whether the file exists:
 
 ```bash
-playbook plan checkpoint <topic-slug>
+test -f "<plans-dir>/<topic-slug>.checkpoint.md" && echo found || echo not-found
 ```
-
-It creates the plans folder, then prints the checkpoint path and `found` or `not-found`. It exits 1 on a bad slug or when the repo has no `origin` remote.
 
 - **Found:** read it. Show its `Goal:` line and its last-modified date (not a bare yes/no), then ask once (in auto mode, take the recommended answer, yes, and record it as an assumption): **"Found an in-progress plan for `<topic>` last touched `<date>`, goal: `<goal-line>`. Resume it? I'd recommend yes because picking up mid-session avoids redoing settled decisions."**
   - **Yes:** load its Decisions Made, Out of Scope, Open Risks, chosen Approach, `Design approved` marker, and the Work Units/Segments table as far as they got. Resume from the first step whose output the checkpoint doesn't yet have: only a Goal and no Decisions Made resumes at Step 1; an Approach with no `Design approved` marker resumes at Step 5 (the route check still needs an answer); a `Design approved` marker with no Work Units resumes at Step 7. Never resume at Step 7 on an Approach alone: Step 6's approval is a hard gate (Core Rules), and a checkpoint that hasn't recorded it hasn't cleared that gate yet, no matter how settled the approach looks.
   - **No:** start fresh. The stale checkpoint is not deleted here: it gets overwritten in place as new decisions are appended through Step 3 onward (see the write shape below), and only Step 12 deletes it, once a completed plan actually replaces it. Silently deleting a stale checkpoint the moment someone declines to resume would destroy a session's progress on a whim, on the chance they meant to resume a different topic under the same seed.
 - **Not found:** proceed to Step 1 with nothing to resume.
 
-**Checkpoint content and write shape.** The checkpoint is a single Markdown file: a `Goal:` line, `Decisions Made`, `Out of Scope`, `Open Risks`, `Approach`, a `Design approved` marker (set only once Step 6's gate clears), and the `Work Units / Segments` table as far as they've been settled, the same structured shape the final plan's condensed sections use. Rewrite it after each resolved decision, not only in Step 3 and Step 7: Step 4 (approach chosen), Step 5 (route-check answer), and Step 6 (the `Design approved` marker) each trigger a rewrite too, under the same mkdir-based advisory lock pattern this repo uses elsewhere for concurrent small-file writes, like `GLOSSARY.md`'s append (`crates/common/src/atomic.rs`'s `with_dir_lock`), adapted here to a full rewrite rather than a one-line append, since the checkpoint's content is a structured document, not an append-only log. `playbook plan checkpoint --write` does it:
+**Checkpoint content and write shape.** The checkpoint is a single Markdown file: a `Goal:` line, `Decisions Made`, `Out of Scope`, `Open Risks`, `Approach`, a `Design approved` marker (set only once Step 6's gate clears), and the `Work Units / Segments` table as far as they've been settled, the same structured shape the final plan's condensed sections use. Rewrite it after each resolved decision, not only in Step 3 and Step 7: Step 4 (approach chosen), Step 5 (route-check answer), and Step 6 (the `Design approved` marker) each trigger a rewrite too, under the same mkdir-based advisory lock pattern this repo uses elsewhere for concurrent small-file writes, like `GLOSSARY.md`'s append (`crates/common/src/atomic.rs`'s `with_dir_lock`), adapted here to a full rewrite rather than a one-line append, since the checkpoint's content is a structured document, not an append-only log. The content is always the full updated checkpoint: Goal, last-touched date, Decisions Made, Out of Scope, Open Risks, Approach, the `Design approved` marker once set, and the Work Units/Segments table as far as they got.
+
+If the session's tool map lists the checkpoint intent, use that command's write option with the content on stdin; it takes the lock, replaces the file whole and prints the path. Otherwise do this: write the content with `Write` to `<plans-dir>/<topic-slug>.checkpoint.md.tmp`, then swap it in under the lock:
 
 ```bash
-playbook plan checkpoint <topic-slug> --write <<'EOF'
-<the full updated checkpoint: Goal, last-touched date, Decisions Made,
-Out of Scope, Open Risks, Approach, and the Work Units/Segments table as
-far as they got>
-EOF
+f="<plans-dir>/<topic-slug>.checkpoint.md"
+mkdir "$f.lock" 2>/dev/null; got=$?
+mv "$f.tmp" "$f"; ok=$?
+[ "$got" -eq 0 ] && rmdir "$f.lock"
+[ "$ok" -eq 0 ] && echo "$f"
 ```
 
-It takes the lock, replaces the file whole and prints the path. When the save fails it prints `couldn't save checkpoint: <reason>, continuing without resume safety this turn` and still exits 0.
+The lock is advisory: when `mkdir` fails because another writer holds it, the write still happens. When the save itself fails, print `couldn't save checkpoint: <reason>, continuing without resume safety this turn` and carry on.
 
 A checkpoint write failure warns inline with that message and the interview keeps going. Never abort a session over a persistence hiccup: a human is present to see the warning, and losing resume safety for one turn is a far smaller cost than losing the whole session.
 
@@ -174,17 +178,9 @@ Alongside the `Explore` agents, dispatch one independent `critic` agent (`subage
 
 Built-in `Explore` agents have been reliable at returning results; the `critic` is structurally read-only and has only the return channel, so it may deliver nothing (`playbook:delegating-subagents`). An area whose agent returned nothing was NOT explored: it does not mean there is nothing there. Say which areas are unexplored rather than treating the digest as complete, and if the premise-challenge came back empty, challenge the premise yourself before moving to Step 3.
 
-**Check memory and prior plans.** Alongside the `Explore` agents, run this repo's memory context:
+**Check memory and prior plans.** Alongside the `Explore` agents, read this repo's memory context. `<owner>/<repo>` is the same slug Step 0 derived from `git remote get-url origin`. Intent: memory-context. If the session's tool map lists it, use that command for `<owner>/<repo>`; it reads the memory graph itself and prints a `Memory context: none` line saying why when it has nothing. Otherwise do this: read the `name:` and `description:` frontmatter lines of the fact files in `~/.config/playbook/memory/<owner>/<repo>/` (project facts) and of the `*.md` files directly in `~/.config/playbook/memory/` (global facts). Either folder may be missing; with no facts in either, treat it as `Memory context: none`. Either way, load the fact files that bear on the idea on demand rather than treating the compact list alone as the full content.
 
-```bash
-playbook memory context --repo <owner>/<repo> 2>/dev/null
-```
-
-`<owner>/<repo>` comes from `git remote get-url origin`, the same slug the command derives itself when `--repo` is omitted. Load the fact files the output names on demand rather than treating the compact digest alone as the full content.
-
-The command reads the memory graph itself and prints a `Memory context: none` line saying why when it has nothing.
-
-Also scan `$(playbook path plans)/*.md` (excluding `*.checkpoint.md` and `*-quality.md`) for a prior saved plan whose title or topic overlaps this idea, a cheap keyword match, not semantic search. When neither memory nor prior plans have anything relevant, skip this silently. When either surfaces a plausible match, a decision already made or an idea already rejected, say so in the digest: what was decided, when, and why. Either way, note in the digest whether memory context found facts. Ask directly whether anything has changed before diverging into new approaches, rather than re-litigating a settled call from scratch.
+Also scan `$PLANS_DIR/*.md` (excluding `*.checkpoint.md` and `*-quality.md`) for a prior saved plan whose title or topic overlaps this idea, a cheap keyword match, not semantic search. When neither memory nor prior plans have anything relevant, skip this silently. When either surfaces a plausible match, a decision already made or an idea already rejected, say so in the digest: what was decided, when, and why. Either way, note in the digest whether memory context found facts. Ask directly whether anything has changed before diverging into new approaches, rather than re-litigating a settled call from scratch.
 
 Consolidate into a short cited digest (a few bullets, each with `file:line`). This grounds the questions that follow so you ask about intent, not about facts the code already holds. In ticket mode, fold the Step 1.5 ticket findings into the same digest, citing the source id or url for those. Assign each `Explore` agent a stable `name` at spawn.
 
@@ -217,13 +213,15 @@ Between questions or rounds, explore further if an answer opens a new area, and 
 
 **Domain glossary (when a term is genuinely ambiguous or new).** If the conversation turns on a term that's overloaded, vague, or new to this codebase, don't just use it and move on: propose a precise definition and check it with the user. This isn't for every noun in a small idea, only for a term the design actually hinges on. Write it to `GLOSSARY.md` at the target repo's root (create the file only on its first real entry; it's tracked in git, not ignored, since its value is shared vocabulary across future sessions, not scratch). Each entry states what the term IS in one or two sentences, not what it does, plus a short list of synonyms to avoid so the disambiguation is recorded, not just implied. Write it the moment it resolves, don't batch it for later. If `GLOSSARY.md` already has a conflicting entry for the term, surface the conflict to the user instead of overwriting it silently.
 
-Append with the same mkdir-based advisory lock pattern the checkpoint's rewrite uses, matching the Rust hooks' `with_dir_lock` (`crates/common/src/atomic.rs`). Two concurrent sessions can each resolve a term at the same moment; a plain check-then-append can silently drop one of the two lines.
+Append with the same mkdir-based advisory lock pattern the checkpoint's rewrite uses, matching the Rust hooks' `with_dir_lock` (`crates/common/src/atomic.rs`). Two concurrent sessions can each resolve a term at the same moment; a plain check-then-append can silently drop one of the two lines. Intent: add-glossary-term. If the session's tool map lists it, use that command with the entry line; it appends one line to `GLOSSARY.md` at the repo root, creating the file on the first entry, and prints the file path. Otherwise do this:
 
 ```bash
-playbook glossary add "<term entry>"
+g="$(git rev-parse --show-toplevel)/GLOSSARY.md"
+mkdir "$g.lock" 2>/dev/null; got=$?
+printf '%s\n' '<term entry>' >> "$g"
+[ "$got" -eq 0 ] && rmdir "$g.lock"
+echo "$g"
 ```
-
-It appends one line to `GLOSSARY.md` at the repo root, creating the file on the first entry, and prints the file path.
 
 Scale the depth: 2-4 questions for a small idea, more for a broad one. Don't over-interview a simple thing (see Adapting to Complexity).
 
@@ -422,15 +420,17 @@ The Testing Strategy MUST follow the `playbook:engineering-standards` skill (tes
 
 After producing the plan, run the three-phase gate. Do NOT skip it. Do NOT ask the user to verify it. Do NOT proceed to Step 11 until it passes. The criteria are inline below. Run Phase 1 first (Phases 2 and 3 read its report), then dispatch Phase 2 and Phase 3 in parallel: issue both Agent calls in a single message so they run at once. The 1-before-(2,3) order is the only real dependency here; Phase 2 and Phase 3 are independent, so they never run one at a time. Consolidate all three at the Quality Gate Result.
 
-**All three phase agents are structurally read-only, so the return value is their only channel and it is unreliable** (`playbook:delegating-subagents`; invoke it before dispatching). `fact-checker`, `critic` and `test-reviewer` hold Read, Grep, Glob and Skill only, and cannot write a report file: `playbook agents check` forbids `Write` and `Bash` for that tier by design. Phase 1 runs as a `fact-checker` dispatch like the other two. Its checks are mechanical and finish in about two minutes with re-runnable output, so when it returns nothing, redo them inline rather than waiting on it. A phase that returned nothing is **INCONCLUSIVE, never PASS**, and INCONCLUSIVE blocks exactly like FAIL: redo it inline, or record the gap and name the phase that did not run. A gate that checked nothing must never read as a pass.
+**All three phase agents are structurally read-only, so the return value is their only channel and it is unreliable** (`playbook:delegating-subagents`; invoke it before dispatching). `fact-checker`, `critic` and `test-reviewer` hold Read, Grep, Glob and Skill only, and cannot write a report file: the repo's agent checks forbid `Write` and `Bash` for that tier by design. Phase 1 runs as a `fact-checker` dispatch like the other two. Its checks are mechanical and finish in about two minutes with re-runnable output, so when it returns nothing, redo them inline rather than waiting on it. A phase that returned nothing is **INCONCLUSIVE, never PASS**, and INCONCLUSIVE blocks exactly like FAIL: redo it inline, or record the gap and name the phase that did not run. A gate that checked nothing must never read as a pass.
 
-**Gate source has two tiers.** Keep the current draft in the shared file `$PLANS_DIR/<topic-slug>.gate-source.md`, written with `Write` every time the draft changes. Right before each phase's dispatch (its first and any retry), freeze a copy for that phase with `playbook gate snapshot <topic-slug> <phase>...` (`<phase>` is `fact-check`, `adversarial` or `test-review`; name Phase 2 and Phase 3 in one call, since they dispatch together). `gate record` reads that phase's own snapshot by default, so a verdict is recorded against what the phase actually reviewed even if the draft is revised before a sibling phase returns. Only Step 11's final `gate check` reads the shared file, which is also its default.
+**Gate source has two tiers.** Keep the current draft in the shared file `$PLANS_DIR/<topic-slug>.gate-source.md`, written with `Write` every time the draft changes. Right before each phase's dispatch (its first and any retry), freeze a copy for that phase at `$PLANS_DIR/<topic-slug>.gate-source.<phase>.md` (`<phase>` is `fact-check`, `adversarial` or `test-review`). Intent: gate-snapshot. If the session's tool map lists it, use that command with `<topic-slug>` and the phases, naming Phase 2 and Phase 3 in one call since they dispatch together. Otherwise do this: `cp` the shared file to each phase's snapshot path. A verdict is then recorded against what the phase actually reviewed even if the draft is revised before a sibling phase returns. Only Step 11's final gate check reads the shared file.
 
-Before running the gate, read `playbook skill ref delegating-subagents quality-gate`; it holds the recording, Verification Summary, Test Review criteria, INCONCLUSIVE and gate check rules used below.
+**Gate ledger.** Every phase return is recorded, and one final check decides whether Step 11 may run. Intent: gate-record. Intent: gate-check. If the session's tool map lists them, use those commands. Record with `<topic-slug> plan <phase>` and the agent's full raw return text on stdin (a quoted heredoc, no scratch file); it reads that phase's own snapshot by default. Check with `<topic-slug> plan fact-check adversarial test-review`; it reads the shared file by default, and its exit code is the verdict. Otherwise do this: keep a `## Gate checklist` section at the end of the checkpoint file, one line per phase with its latest verdict (PASS, WARN, FAIL or INCONCLUSIVE), the round, and the snapshot it reviewed, and rewrite the checkpoint after every return. A later verdict for a phase replaces its earlier line. The check passes only when all three lines read PASS or WARN and `cmp -s` finds each phase's snapshot identical to the current shared file; a missing line is MISSING and a differing snapshot is STALE. Treat anything else as a non-zero exit. Without the tool this enforcement is advisory, since nothing outside this session holds you to it, so apply it strictly and copy the checklist into the quality report at Step 12.
+
+Before running the gate, read `../skills/delegating-subagents/references/quality-gate.md` (relative to this file); it holds the recording, Verification Summary, Test Review criteria, INCONCLUSIVE and gate check rules used below.
 
 #### Phase 1: Fact-Check
 
-**Before Phase 1's first dispatch, and before each retry of Phase 1**, write the current draft to the shared file and run `playbook gate snapshot <topic-slug> fact-check`. Refresh the shared file every time the draft changes, including after every revision in the FAIL-then-revise-and-re-run cycles below: a stale snapshot would let an outdated draft pass off as the one actually reviewed.
+**Before Phase 1's first dispatch, and before each retry of Phase 1**, write the current draft to the shared file and freeze Phase 1's `fact-check` snapshot. Refresh the shared file every time the draft changes, including after every revision in the FAIL-then-revise-and-re-run cycles below: a stale snapshot would let an outdated draft pass off as the one actually reviewed.
 
 Spawn a `fact-checker` agent (`subagent_type: playbook:fact-checker`) with the full plan and these criteria:
 
@@ -444,11 +444,11 @@ Spawn a `fact-checker` agent (`subagent_type: playbook:fact-checker`) with the f
 
 Returns a structured PASS / FAIL / WARN report. Phase 1 folds a Verification Summary into it (table shape in the quality-gate reference).
 
-Spawn it with a stable `name`. **Record the gate:** pipe its full raw return text to `playbook gate record <topic-slug> plan fact-check -` (a quoted heredoc on stdin, no scratch file). Do this every time Phase 1 returns, including every retry (the recording rule is in the quality-gate reference). **After it returns**, if a project store is present at `~/.config/playbook/memory/<owner>/<repo>/`, persist any durable gotcha it found as a memory fact; otherwise skip. **If any FAILs:** revise the plan (refreshing both the shared file and this phase's own snapshot per the two-tier scheme above) and re-run Phase 1 under the gate loop (`playbook:delegating-subagents`, `references/gate-loop.md`: hard cap 5 rounds, stop at PASS, STUCK on no progress). Don't proceed until it passes.
+Spawn it with a stable `name`. **Record the gate** for `fact-check` (Gate ledger above). Do this every time Phase 1 returns, including every retry (the recording rule is in the quality-gate reference). **After it returns**, if a project store is present at `~/.config/playbook/memory/<owner>/<repo>/`, persist any durable gotcha it found as a memory fact; otherwise skip. **If any FAILs:** revise the plan (refreshing both the shared file and this phase's own snapshot per the two-tier scheme above) and re-run Phase 1 under the gate loop (`playbook:delegating-subagents`, `references/gate-loop.md`: hard cap 5 rounds, stop at PASS, STUCK on no progress). Don't proceed until it passes.
 
 #### Phase 2: Adversarial Review
 
-**Before Phase 2's own dispatch, and before each retry of Phase 2**, refresh the shared file if the draft changed and run `playbook gate snapshot <topic-slug> adversarial`.
+**Before Phase 2's own dispatch, and before each retry of Phase 2**, refresh the shared file if the draft changed and freeze Phase 2's `adversarial` snapshot.
 
 Spawn a `critic` agent (`subagent_type: playbook:critic`, focus `plan`) with the full plan and the Phase 1 report. It challenges the design:
 
@@ -458,15 +458,15 @@ Spawn a `critic` agent (`subagent_type: playbook:critic`, focus `plan`) with the
 - Blast radius: what could this break?
 - Contradictions with the fact-check report.
 
-Returns a structured report. Spawn it with a stable `name`. **Record the gate:** pipe its full raw return text to `playbook gate record <topic-slug> plan adversarial -` (a quoted heredoc on stdin, no scratch file). Do this every time Phase 2 returns, including every retry. **After it returns**, record any rejected simpler alternative (with reasoning) in the plan's Risks section. **If any FAILs:** revise and re-run Phase 2 under the same gate loop, refreshing this phase's snapshot and the shared file before the re-run.
+Returns a structured report. Spawn it with a stable `name`. **Record the gate** for `adversarial` (Gate ledger above). Do this every time Phase 2 returns, including every retry. **After it returns**, record any rejected simpler alternative (with reasoning) in the plan's Risks section. **If any FAILs:** revise and re-run Phase 2 under the same gate loop, refreshing this phase's snapshot and the shared file before the re-run.
 
 #### Phase 3: Test Review
 
-**Before Phase 3's own dispatch, and before each retry of Phase 3**, refresh the shared file if the draft changed and run `playbook gate snapshot <topic-slug> test-review`.
+**Before Phase 3's own dispatch, and before each retry of Phase 3**, refresh the shared file if the draft changed and freeze Phase 3's `test-review` snapshot.
 
 Spawn a `test-reviewer` agent (`subagent_type: playbook:test-reviewer`) with the plan's Testing Strategy and the Phase 1 report (it runs in parallel with Phase 2, so it doesn't wait on the adversarial findings). It evaluates the proposed tests against the Test Review criteria in the quality-gate reference.
 
-Returns a structured report. Spawn it with a stable `name`. **Record the gate:** pipe its full raw return text to `playbook gate record <topic-slug> plan test-review -` (a quoted heredoc on stdin, no scratch file). Do this every time Phase 3 returns, including every retry. **After it returns**, if a project store is present at `~/.config/playbook/memory/<owner>/<repo>/`, persist any durable test-quality pattern as a memory fact; otherwise skip. **If any FAILs:** revise the test plan and re-run Phase 3 under the same gate loop, refreshing this phase's snapshot and the shared file before the re-run.
+Returns a structured report. Spawn it with a stable `name`. **Record the gate** for `test-review` (Gate ledger above). Do this every time Phase 3 returns, including every retry. **After it returns**, if a project store is present at `~/.config/playbook/memory/<owner>/<repo>/`, persist any durable test-quality pattern as a memory fact; otherwise skip. **If any FAILs:** revise the test plan and re-run Phase 3 under the same gate loop, refreshing this phase's snapshot and the shared file before the re-run.
 
 #### Quality Gate Result
 
@@ -485,7 +485,7 @@ WARNs are shown for awareness but do not block.
 
 - **INCONCLUSIVE** blocks the save exactly like FAIL (definition in the quality-gate reference).
 
-**Gate check (MUST, before Step 11):** run `playbook gate check <topic-slug> plan fact-check adversarial test-review`, which reads the shared file in its current, fully refreshed state (never a phase's snapshot). Everything above (the phase reports, the Quality Gate Result presentation, the INCONCLUSIVE rule) is for the human reading it; this command's exit code is what actually decides whether Step 11 may run. Exit 0: proceed to Step 11. Non-zero exit: do NOT proceed to Step 11, and do NOT write any "gate passed" language; handle it as the quality-gate reference says (verbatim output, FAIL and INCONCLUSIVE retry, STALE re-run).
+**Gate check (MUST, before Step 11):** run the gate check from the Gate ledger above for `fact-check`, `adversarial` and `test-review`, against the shared file in its current, fully refreshed state (never a phase's snapshot). Everything above (the phase reports, the Quality Gate Result presentation, the INCONCLUSIVE rule) is for the human reading it; the check's result is what actually decides whether Step 11 may run. Exit 0: proceed to Step 11. Non-zero exit: do NOT proceed to Step 11, and do NOT write any "gate passed" language; handle it as the quality-gate reference says (verbatim output, FAIL and INCONCLUSIVE retry, STALE re-run).
 
 ### Step 11: User Approval
 
@@ -503,13 +503,21 @@ Do NOT save until the user explicitly approves. If they request changes, revise 
 
 ### Step 12: Save & Next Steps
 
-Only after the user approves. The plans directory lives outside this repo checkout (`$HOME/.config/playbook/repos/<owner>/<repo>/<worktree-id>/plans/`), resolved via the CLI, not gitignored: there is nothing repo-local left to ignore.
+Only after the user approves. The plans directory lives outside this repo checkout (`$HOME/.config/playbook/repos/<owner>/<repo>/plans/`, one folder per repo shared by every worktree, resolved in Step 0), not gitignored: there is nothing repo-local left to ignore.
 
 1. Save the plan to `$PLANS_DIR/<topic-slug>.md` and the gate reports to `$PLANS_DIR/<topic-slug>-quality.md`.
-2. Clear the scratch files this run left in the plans folder (the checkpoint, its lock, the shared gate source and every per-phase snapshot): run `playbook plan cleanup <topic-slug>`. Never `rm` them, the rm guard refuses paths outside the repo. They would otherwise linger as extra entries in `/playbook:implement`'s plan picker (Step 1). The command leaves `<topic-slug>.md` and `<topic-slug>-quality.md` alone, is safe to repeat, and `playbook plan cleanup --stale` clears leftovers from earlier runs (dry run unless `--yes`).
+2. Clear the scratch files this run left in the plans folder: the checkpoint `<topic-slug>.checkpoint.md`, its lock directory `<topic-slug>.checkpoint.md.lock`, the shared gate source `<topic-slug>.gate-source.md` and every per-phase snapshot `<topic-slug>.gate-source.<phase>.md`. They would otherwise linger in the plans folder. Touch only those names: `<topic-slug>.md` and `<topic-slug>-quality.md` stay. Delete them with:
+
+   ```bash
+   d="<plans-dir>"; s="<topic-slug>"
+   rm -f "$d/$s.checkpoint.md" "$d/$s".gate-source*.md
+   rmdir "$d/$s.checkpoint.md.lock" 2>/dev/null
+   ```
+
+   If a guard hook refuses the delete because the folder is outside the repo, leave the files and list their paths in the report.
 3. If a project store is present at `~/.config/playbook/memory/<owner>/<repo>/`, persist the plan's accepted key decisions (from both the divergent and convergent phases) as project memory facts (`type: project`, `anchors:` to the files they touch). The graph rebuilds automatically on fact save via the PostToolUse hook. Otherwise skip.
 4. Tell the user:
-   - "Saved to `<plans-dir>/<topic-slug>.md`" (`<plans-dir>` is `playbook path plans`'s resolved path).
+   - "Saved to `<plans-dir>/<topic-slug>.md`" (`<plans-dir>` is the plans folder Step 0 resolved).
    - "Run `/clear`, then implement it with a clean context: `/playbook:implement <plans-dir>/<topic-slug>.md`." This session's back-and-forth is exactly what a fresh execution phase shouldn't carry forward; there's no way to clear it from inside this session, so say so instead of leaving it implicit. **In auto mode,** skip the `/clear` instruction and hand the saved plan path straight to `/playbook:implement`: print `/playbook:implement <plans-dir>/<topic-slug>.md` as the next command to run.
    - If Step 5 recommended it or `--adr` was set: "Want to record the architectural call too? Run `/clear`, then `/playbook:adr` for that decision." Note it's a separate command producing a separate artifact, not a replacement for the saved plan. In auto mode, leave out the `/clear` here too.
    - **In `--auto`:** also list the **Assumptions** made (especially any `OPEN` ones) so the user can audit the autonomous choices before running `/playbook:implement`.
