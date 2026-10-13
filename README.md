@@ -12,7 +12,7 @@ claude plugin install playbook@pragmatic-engineer
 claude plugin install playbook-hooks@pragmatic-engineer
 ```
 
-Claude Code v2.1.224 or later is recommended. The second install line is optional. The full install guide, including the binary and the `install.sh` script, is in the [playbook repository](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/00-install.md).
+Claude Code v2.1.224 or later is recommended. The second install line is optional, and it appears once a playbook release carries the hooks archive. The full install guide, including the binary and the `install.sh` script, is in the [playbook repository](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/00-install.md).
 
 ## Layout
 
