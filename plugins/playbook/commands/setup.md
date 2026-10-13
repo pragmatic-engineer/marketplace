@@ -8,11 +8,11 @@ effort: low
 
 # Setup
 
-Install and wire the optional playbook binary: the always-on safety guards, settings.json, and the tool map printed at session start. Optionally
+Wire the optional playbook binary, once it is installed: the always-on safety guards, settings.json, and the tool map printed at session start. Optionally
 add the `playbook` shell wrapper (it follows the session launcher into a new worktree) and install the custom system prompt. Each step
 is idempotent; re-running /playbook:setup is safe and only changes what is missing.
 
-The plugin's skills and commands work without the binary: where a step can use a tool, they fall back to plain git, gh and file steps. This command, like /playbook:doctor, needs the binary because it is the binary's installer and wiring step.
+The plugin's skills and commands work without the binary: where a step can use a tool, they fall back to plain git, gh and file steps. This command, like /playbook:doctor, needs the binary because it is the binary's wiring step. Install the binary first with the hint that /playbook:doctor prints for layer 6.
 
 ## Step 0: Read the run mode
 

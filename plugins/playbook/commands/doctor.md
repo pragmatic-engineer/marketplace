@@ -22,7 +22,7 @@ Print its output as the status table. Add `--json` for the same rows as JSON
 (`layer`, `level`, `message`, `hint`).
 
 If the command fails with `command not found`, the binary is not on PATH: print
-`INFO  plugin only, binary not installed: skills and commands work; guards, hooks and the tool map are off -- run /playbook:setup to add them` and the install
+`INFO  plugin only, binary not installed: skills and commands work; guards, hooks and the tool map are off -- install the binary (see the Layer 6 hint), then run /playbook:setup` and the install
 hint from Layer 6 below, and stop. If it fails with
 `unrecognized subcommand 'check'`, the installed binary is older than this
 plugin: print "playbook binary is older than the plugin, upgrade it with the install hint below."
