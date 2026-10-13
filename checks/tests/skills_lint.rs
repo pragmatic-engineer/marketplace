@@ -149,7 +149,7 @@ fn lens_reviewers_do_not_load_the_orchestrator_sections() {
     let orch = read_skill("grounding-review/references/orchestrator.md");
     assert!(orch.contains("## Review Report Format"));
     assert!(orch.contains("## Verification Sweep (MUST)"));
-    assert!(skill.contains("playbook skill ref grounding-review orchestrator"));
+    assert!(skill.contains("references/orchestrator.md"));
 }
 
 #[test]

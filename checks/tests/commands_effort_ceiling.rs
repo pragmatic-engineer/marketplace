@@ -103,7 +103,8 @@ fn the_resolved_names_are_real_components() {
 fn quick_review_holds_its_reviewer_to_medium() {
     let text = fs::read_to_string(commands_dir().join("quick-review.md")).unwrap();
     assert!(
-        text.contains("playbook effort resolve agents reviewer --cap medium --json"),
+        (text.contains("Intent: effort-resolve") && text.contains("--cap medium"))
+            || text.contains("playbook effort resolve agents reviewer --cap medium --json"),
         "quick-review must resolve its reviewer with a medium cap"
     );
     assert!(

@@ -26,15 +26,9 @@ Parse `$ARGUMENTS` (strip `--self`, `--no-post`, `--auto` and `--ask` before rea
 
 ## Step 0: Read the run mode
 
-Do this first, before Step 1. Read the mode from the CLI:
+Do this first, before Step 1. Read the run mode and the effort ceiling for `quick-review` with `$ARGUMENTS`: read `skills/delegating-subagents/references/run-context.md` in this plugin and follow it. It covers the tool, the plain steps without it, the warning, the ceiling, the flag conflict and any failure.
 
-```bash
-playbook run-context --command quick-review --args "$ARGUMENTS"
-```
-
-The JSON has `mode`, `source`, `hook_mode`, `warning` and `ceiling`. Read `playbook skill ref delegating-subagents run-context` and follow it for the warning, the ceiling, exit 2, any other failure, and an outdated binary.
-
-**Routing.** Where you choose what to spawn, also run `playbook route review --json` and follow its `action` under the `routing.escalate` gate: on `ask` stop and ask the user, on `downgraded` (`deny`) use the lower tier it names, and in auto mode (`auto`) proceed and log the assumption. If the command fails, carry on.
+**Routing.** Where you choose what to spawn, route the `review` kind. Intent: route-model. If the session's tool map (printed at session start) lists it, use that command and follow its `action` under the `routing.escalate` gate: on `ask` stop and ask the user, on `downgraded` (`deny`) use the lower tier it names, and in auto mode (`auto`) proceed and log the assumption. If the command fails, carry on. Otherwise do this: spawn the agents this file names, with the model their agent files pin.
 
 - **`ask` mode:** behave exactly as this file describes.
 - **`auto` mode:** follow the Posting in auto mode paragraph below: it changes nothing about posting.
@@ -57,13 +51,16 @@ After resolving `PR_NUMBER` and `HEAD_SHA`, decide how to read the PR's files:
 
 With no argument, the in-place predicate runs the same check. If the current branch's HEAD matches `HEAD_SHA` and the tree is clean, review in place.
 
-**Worktree mode** (all other cases): set up an isolated worktree:
+**Worktree mode** (all other cases): set up an isolated, detached worktree at `HEAD_SHA`. When Step 1's tool ran, it already did this; if it reports `error: worktree setup failed`, abort. Otherwise set it up yourself. Intent: review-worktree-setup. If the session's tool map (printed at session start) lists it, use that command with `PR_NUMBER` and `HEAD_SHA`, and capture stdout only: it prints the worktree path on stdout and sends git's progress to stderr on purpose, so folding them together corrupts the path. Otherwise do this:
 
-`playbook review prepare` (Step 1) does this setup. If it reports `error: worktree setup failed`, abort.
+```bash
+WT="$(git rev-parse --path-format=absolute --git-common-dir)/review-worktrees/$PR_NUMBER-${HEAD_SHA:0:7}"
+git fetch "$(gh repo view --json url -q .url)" "refs/pull/$PR_NUMBER/head"
+git cat-file -e "$HEAD_SHA^{commit}"
+mkdir -p "$(dirname "$WT")" && git worktree add --detach "$WT" "$HEAD_SHA"
+```
 
-On failure this prints the command's stderr and stops. No fallback, no degraded mode.
-Capture stdout only: `playbook worktree review setup` prints the worktree path on stdout and sends
-git's progress to stderr on purpose, so folding them together corrupts the path.
+If `$WT` already exists, another review of this PR may be running: stop and say so. If the fetch, the `cat-file` check (the PR was force-pushed: re-run) or the `worktree add` fails, show the error and stop. No fallback, no degraded mode.
 
 When in worktree mode, read and grep all files under `$WT` instead of the local working tree. `WT` is not empty exactly when a worktree was created: use that to decide the teardown step.
 
@@ -94,11 +91,14 @@ Findings are plain: a label, `file:line`, the exact evidence, a short failure sc
 
 ## Step 1: Resolve PR and gather context
 
-```bash
-playbook review prepare quick "$ARGUMENTS"
-```
+Resolve the PR, work out `SELF_MODE`, decide in-place or worktree and set the worktree up, and create the folder of `REVIEW_JSON`. Intent: review-prepare. If the session's tool map (printed at session start) lists it, use that command with the `quick` kind and `$ARGUMENTS`, adding `--auto` when Step 0 read auto mode (it does not skip the post question). It prints these lines: `PR`, `REPO`, `PR_NUMBER`, `HEAD_SHA`, `AUTHOR`, `SELF_REVIEW`, `SELF_MODE`, `MODE`, `WT` (empty when in place) and `REVIEW_JSON`. On a problem it prints `error: ...` and exits 1: stop and show it. Otherwise do this:
 
-Add `--auto` when Step 0 read auto mode (it does not skip the post question). The command resolves the PR as described above, works out `SELF_MODE`, decides in-place or worktree and sets the worktree up, creates the folder of `REVIEW_JSON`, and prints these lines: `PR`, `REPO`, `PR_NUMBER`, `HEAD_SHA`, `AUTHOR`, `SELF_REVIEW`, `SELF_MODE`, `MODE`, `WT` (empty when in place) and `REVIEW_JSON`. On a problem it prints `error: ...` and exits 1: stop and show it. Then read the PR with the number it printed:
+1. Resolve `PR_NUMBER` as Argument parsing above says.
+2. Run `gh repo view --json nameWithOwner -q .nameWithOwner` for `REPO`, `gh pr view <PR_NUMBER> --json headRefOid,author -q '.headRefOid + " " + .author.login'` for `HEAD_SHA` and `AUTHOR`, and `gh api /user -q .login` for your login. `SELF_REVIEW` is true when `AUTHOR` is your login. `SELF_MODE` is true only when `--self` or `--no-post` was passed.
+3. Apply the in-place test from Worktree vs in-place mode. When it fails, set up the worktree as that section says and keep its path in `WT`; otherwise `WT` is empty.
+4. Set `REVIEW_JSON=/tmp/$REPO/quick-review-$PR_NUMBER.json` and run `mkdir -p "$(dirname "$REVIEW_JSON")"`.
+
+Then read the PR with the number you resolved:
 
 ```bash
 gh pr view <PR_NUMBER>
@@ -109,13 +109,7 @@ Capture: `REPO`, `PR_NUMBER`, `HEAD_SHA`, `SELF_REVIEW`, `SELF_MODE`, `REVIEW_JS
 
 ## Step 1b: Stack check
 
-Right after Step 1, run:
-
-```bash
-playbook skill ref grounding-review stack-review
-```
-
-Read the file it prints and follow it. A PR that is not in a stack gets no question and nothing changes in this file. When the PR is in a stack, that file decides the scope (this PR only, the whole stack, or the whole stack with deep review), builds one shared context, and says how Steps 2 to 4 and the posting step differ for a whole stack. Strip `--this-pr` and `--whole-stack` before reading the other arguments.
+Right after Step 1, read `skills/grounding-review/references/stack-review.md` in this plugin and follow it. A PR that is not in a stack gets no question and nothing changes in this file. When the PR is in a stack, that file decides the scope (this PR only, the whole stack, or the whole stack with deep review), builds one shared context, and says how Steps 2 to 4 and the posting step differ for a whole stack. Strip `--this-pr` and `--whole-stack` before reading the other arguments.
 
 ## Step 2: Delegate the review pass (isolated reviewer subagent)
 
@@ -125,7 +119,7 @@ Reading and analysing the changed files is where main-context rot accumulates, s
 
 Before spawning, `SELF_MODE` is already settled (Step 1), so decide here whether anything can be posted. The orchestrator invokes `playbook:grounding-review` now, for the sweep and the report format, and loads no `playbook:writing-style` here.
 
-Spawn ONE `reviewer` subagent at **medium effort** (Opus model, set by the agent file, and the reviewer's own effort). Run `playbook effort resolve agents reviewer --cap medium --json` and spawn the `subagentType` it returns: `playbook:reviewer` normally, or a lower variant such as `reviewer-low` when the user's ceilings are lower. The cap never raises anything and a lower user ceiling still wins. If the command fails, spawn `playbook:reviewer`. The orchestrator doesn't set `model` on this call. Because the review is single-pass, its focus is the ENTIRE diff (logic, tests, security, data, types, perf, docs), not one lens.
+Spawn ONE `reviewer` subagent at **medium effort** (Opus model, set by the agent file, and the reviewer's own effort). Resolve the reviewer under the user's effort ceiling with a `medium` cap. Intent: effort-resolve. If the session's tool map (printed at session start) lists it, use that command for the `reviewer` agent with `--cap medium --json` and spawn the `subagentType` it returns: `playbook:reviewer` normally, or a lower variant such as `reviewer-low` when the user's ceilings are lower. The cap never raises anything and a lower user ceiling still wins. If the command fails, spawn `playbook:reviewer`. Otherwise do this: spawn `playbook:reviewer`, which ships at medium. The orchestrator doesn't set `model` on this call. Because the review is single-pass, its focus is the ENTIRE diff (logic, tests, security, data, types, perf, docs), not one lens.
 
 The subagent prompt MUST include:
 
@@ -139,7 +133,7 @@ Spawn it with a stable `name` (e.g. `qr-<PR_NUMBER>`). If stopping it reports `n
 
 ## Step 3: Review report contract
 
-**The `reviewer` agent has only one channel, and it is unreliable. Plan for that** (`playbook:delegating-subagents`). It is structurally read-only (Read, Grep, Glob, Skill), so it cannot write its report to a file: `playbook agents check` forbids `Write` and `Bash` for that tier by design, and granting them would fail CI. Its return value is therefore the only route, and Agent-tool return values have failed outright in measured use.
+**The `reviewer` agent has only one channel, and it is unreliable. Plan for that** (`playbook:delegating-subagents`). It is structurally read-only (Read, Grep, Glob, Skill), so it cannot write its report to a file: the repo's agent checks forbid `Write` and `Bash` for that tier by design, and granting them would fail CI. Its return value is therefore the only route, and Agent-tool return values have failed outright in measured use.
 
 So:
 
@@ -169,7 +163,7 @@ If `SELF_MODE` is true (explicit `--self` or `--no-post`), or nothing is postabl
 
 ### Draft the comments (not in `SELF_MODE`, and only when something is postable)
 
-Now that the sweep is done and something can be posted, load `playbook:writing-style`. Draft one comment body for every swept finding that is not `Report-only`, from its label, problem, consequence and fix, applying that skill's GitHub rules. Then read its `github-review-comments`, `github-prohibited`, `examples` and `imperfections` references (`playbook skill ref writing-style <name>` prints each path). Comment bodies are read by another engineer, so they use the humane register (warm, contractions, constructive), NOT the terse operator voice from the "Concise & Direct" output style or system prompt `## Output`. Where those would conflict, `playbook:writing-style` wins for anything posted to GitHub. A body starts with the bare plain-text label, never bold, and carries no `file:line` prefix: GitHub anchors it. It MAY hold a ```suggestion``` block when the fix is mechanical.
+Now that the sweep is done and something can be posted, load `playbook:writing-style`. Draft one comment body for every swept finding that is not `Report-only`, from its label, problem, consequence and fix, applying that skill's GitHub rules. Then read its `github-review-comments`, `github-prohibited`, `examples` and `imperfections` references (each is `references/<name>.md` in the `writing-style` skill's folder). Comment bodies are read by another engineer, so they use the humane register (warm, contractions, constructive), NOT the terse operator voice from the "Concise & Direct" output style or system prompt `## Output`. Where those would conflict, `playbook:writing-style` wins for anything posted to GitHub. A body starts with the bare plain-text label, never bold, and carries no `file:line` prefix: GitHub anchors it. It MAY hold a ```suggestion``` block when the fix is mechanical.
 
 Relay the swept report with each draft shown under its finding as a `Draft:` block. Each draft is the final text: label, voice, no dashes, GitHub rules, all applied. Nothing is rewritten between this preview and the post, so what the user reads is exactly what posts. If the user asks for a change to a draft, redraft it with `playbook:writing-style` and show the new preview before posting.
 
@@ -240,10 +234,11 @@ Final user-facing message: one sentence per outcome.
 
 ## Step 6: Teardown (MUST run, even on failure, abort, or skip)
 
-If `WT` is not empty, always run:
+If `WT` is not empty, always remove the review worktree. Intent: review-worktree-teardown. If the session's tool map (printed at session start) lists it, use that command with `"$WT"`. Otherwise do this:
 
 ```bash
-playbook worktree review teardown "$WT"
+git worktree remove --force --force "$WT"
+git worktree prune
 ```
 
 This step is unconditional: run it whether the review completed, failed, was skipped, or was aborted by the user. It is a no-op if the worktree was already cleaned up.

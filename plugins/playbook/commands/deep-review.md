@@ -47,15 +47,9 @@ With no PR number the current branch's PR is reviewed and the post question is a
 
 ## Step 0: Read the run mode
 
-Do this first, before Step 1. Read the mode from the CLI:
+Do this first, before Step 1. Read the run mode and the effort ceiling for `deep-review` with `$ARGUMENTS`: read `skills/delegating-subagents/references/run-context.md` in this plugin and follow it. It covers the tool, the plain steps without it, the warning, the ceiling, the flag conflict and any failure.
 
-```bash
-playbook run-context --command deep-review --args "$ARGUMENTS"
-```
-
-The JSON has `mode`, `source`, `hook_mode`, `warning` and `ceiling`. Read `playbook skill ref delegating-subagents run-context` and follow it for the warning, the ceiling, exit 2, any other failure, and an outdated binary.
-
-**Routing.** Where you choose what to spawn, also run `playbook route review --json` and follow its `action` under the `routing.escalate` gate: on `ask` stop and ask the user, on `downgraded` (`deny`) use the lower tier it names, and in auto mode (`auto`) proceed and log the assumption. If the command fails, carry on.
+**Routing.** Where you choose what to spawn, route the `review` kind. Intent: route-model. If the session's tool map (printed at session start) lists it, use that command and follow its `action` under the `routing.escalate` gate: on `ask` stop and ask the user, on `downgraded` (`deny`) use the lower tier it names, and in auto mode (`auto`) proceed and log the assumption. If the command fails, carry on. Otherwise do this: spawn the agents this file names, with the model their agent files pin.
 
 - **`ask` mode:** behave exactly as this file describes.
 - **`auto` mode:** follow the Posting in auto mode paragraph below: it changes nothing about posting.
@@ -109,11 +103,23 @@ Findings are plain: label, `file:line`, evidence, a short failure scenario, and 
 
 ## Step 1: Resolve PR and gather context
 
-```bash
-playbook review prepare deep "$ARGUMENTS"
-```
+Resolve the PR (a number or `#N`, else a branch name, else the current branch's PR), work out `SELF_MODE`, decide in-place or worktree and set the worktree up, and create the folder of `REVIEW_JSON`. Intent: review-prepare. If the session's tool map (printed at session start) lists it, use that command with the `deep` kind and `$ARGUMENTS`, adding `--auto` when Step 0 read auto mode (it does not skip the post question). It prints these lines: `PR`, `REPO`, `PR_NUMBER`, `HEAD_SHA`, `AUTHOR`, `SELF_REVIEW`, `SELF_MODE`, `MODE`, `WT` (empty when in place) and `REVIEW_JSON`. On a problem it prints `error: ...` and exits 1: stop and show it. Otherwise do this:
 
-Add `--auto` when Step 0 read auto mode (it does not skip the post question). The command resolves the PR (a number or `#N`, else a branch name, else the current branch's PR), works out `SELF_MODE`, decides in-place or worktree and sets the worktree up, creates the folder of `REVIEW_JSON`, and prints these lines: `PR`, `REPO`, `PR_NUMBER`, `HEAD_SHA`, `AUTHOR`, `SELF_REVIEW`, `SELF_MODE`, `MODE`, `WT` (empty when in place) and `REVIEW_JSON`. On a problem it prints `error: ...` and exits 1: stop and show it. Then read the PR with the number it printed:
+1. Resolve `PR_NUMBER`: the first word that is a number or `#N`; else a branch name that passes `git check-ref-format --branch <arg>`, resolved with `gh pr list --head <branch> --json number -q '.[0].number'` (none found: stop with `error: no open PR for branch <name>; create one first or pass a PR number`); else the current branch's PR from `gh pr view --json number -q .number`.
+2. Run `gh repo view --json nameWithOwner -q .nameWithOwner` for `REPO`, `gh pr view <PR_NUMBER> --json headRefOid,author -q '.headRefOid + " " + .author.login'` for `HEAD_SHA` and `AUTHOR`, and `gh api /user -q .login` for your login. `SELF_REVIEW` is true when `AUTHOR` is your login.
+3. In place when `git rev-parse HEAD` equals `HEAD_SHA` and `git status --porcelain --untracked-files=no` is empty; `WT` is then empty. Otherwise set up the review worktree (Intent: review-worktree-setup; if the tool map lists it, use that command with `PR_NUMBER` and `HEAD_SHA` and capture stdout only), or by hand:
+
+   ```bash
+   WT="$(git rev-parse --path-format=absolute --git-common-dir)/review-worktrees/$PR_NUMBER-${HEAD_SHA:0:7}"
+   git fetch "$(gh repo view --json url -q .url)" "refs/pull/$PR_NUMBER/head"
+   git cat-file -e "$HEAD_SHA^{commit}"
+   mkdir -p "$(dirname "$WT")" && git worktree add --detach "$WT" "$HEAD_SHA"
+   ```
+
+   If `$WT` already exists, another review of this PR may be running: stop and say so. If a command fails, show the error and stop.
+4. Set `REVIEW_JSON=/tmp/$REPO/deep-review-$PR_NUMBER.json` and run `mkdir -p "$(dirname "$REVIEW_JSON")"`.
+
+Then read the PR with the number you resolved:
 
 ```bash
 gh pr view <PR_NUMBER>
@@ -126,13 +132,7 @@ In worktree mode, `WT` holds the absolute path to the isolated checkout. In in-p
 
 ## Step 1b: Stack check
 
-Right after Step 1, run:
-
-```bash
-playbook skill ref grounding-review stack-review
-```
-
-Read the file it prints and follow it. A PR that is not in a stack gets no question and nothing changes in this file. When the PR is in a stack, that file decides the scope (this PR only, the whole stack, or the whole stack with deep review), builds one shared context, and says how Steps 2 to 4 and the posting step differ for a whole stack. Strip `--this-pr` and `--whole-stack` before reading the other arguments.
+Right after Step 1, read `skills/grounding-review/references/stack-review.md` in this plugin and follow it. A PR that is not in a stack gets no question and nothing changes in this file. When the PR is in a stack, that file decides the scope (this PR only, the whole stack, or the whole stack with deep review), builds one shared context, and says how Steps 2 to 4 and the posting step differ for a whole stack. Strip `--this-pr` and `--whole-stack` before reading the other arguments.
 
 ## Step 2: Select reviewers
 
@@ -144,17 +144,22 @@ Read the file it prints and follow it. A PR that is not in a stack gets no quest
 
 Skip this step entirely when `WT` is empty (in-place mode).
 
-Run the project's own check suite once in the worktree. `playbook review checks` detects the toolchain (Node, Python, Go or Rust) and prints the combined output:
+Run the project's own check suite once in the worktree, picking the toolchain by the file at the top of `$WT`. Intent: review-checks. If the session's tool map (printed at session start) lists it, use that command with `"$WT"`; it prints the combined output. Otherwise do this: run, inside `$WT`, the first row whose file exists, and keep stdout and stderr of every command:
 
-```bash
-playbook review checks "$WT"
-```
+| File | Setup | Checks |
+|---|---|---|
+| `package.json` | `npm install --prefer-offline` (keep the last 5 lines) | `npm run typecheck`, `npm run lint`, `npm test` |
+| `pyproject.toml` or `setup.py` | `pip install -e . -q` (keep the last 3 lines) | `python -m mypy .`, `python -m pytest` |
+| `go.mod` | none | `go vet ./...`, `go test ./...` |
+| `Cargo.toml` | none | `cargo check`, `cargo test` |
+
+With none of these files, the output is `[no recognised toolchain; checks skipped]`.
 
 A failing install or check is printed as output, never an error: never block the review. Keep the output as `CHECK_OUTPUT` so Step 3 can embed it verbatim in each subagent prompt.
 
 ## Step 2c: Load memory (best-effort)
 
-Run `playbook memory context --repo <owner>/<repo>` (`<owner>/<repo>` from `git remote get-url origin`), and load the fact files it names on demand. The command reads the memory graph itself and prints a `Memory context: none` line saying why when it has nothing. In that case skip this step silently; Step 3's reviewers get no memory section and that's expected, not an error. Note in the report whether facts were found.
+Load the saved facts for `<owner>/<repo>` (from `git remote get-url origin`). Intent: memory-context. If the session's tool map (printed at session start) lists it, use that command with `--repo <owner>/<repo>`, and load the fact files it names on demand. The command reads the memory graph itself and prints a `Memory context: none` line saying why when it has nothing. Otherwise do this: skip the step, because only that tool reads the memory graph. Skipped, or with a `Memory context: none` line, the step ends silently; Step 3's reviewers get no memory section and that's expected, not an error. Note in the report whether facts were found.
 
 ## Step 2d: Haiku triage
 
@@ -162,15 +167,9 @@ Skip this step entirely when `--all` was passed (check `$ARGUMENTS` the same way
 
 Otherwise, dispatch `review-triage` (`subagent_type: playbook:review-triage`) exactly once per review run, regardless of how many lenses Step 2 selected. The prompt includes: the PR diff (the same diff Step 1 already captured via `gh pr diff "$PR_NUMBER"` and that Step 3's reviewer prompts also embed), `HEAD_SHA`, the absolute `$WT` path (or a note that the tree is in-place when `WT` is empty, same convention Step 3 uses), and the full set of lens names Step 2 selected (core reviewers plus any triggered conditional reviewers). Capture the returned tier map, a JSON object of `{lens: {tier, reason}}`, into context for Step 3 to read.
 
-Complete the map in code, not by hand. Write the triage return text to a file, or pipe it in with `--tiers -` (omit `--tiers` when the dispatch failed or returned nothing), then run:
+Complete the map so every lens Step 2 selected has a tier. Intent: review-triage-merge. If the session's tool map (printed at session start) lists it, use that command with `--lenses <comma separated lens names>` and the triage return text as `--tiers <file>` (or `--tiers -` on stdin; omit `--tiers` when the dispatch failed or returned nothing). It prints the full tier map as JSON, one entry per lens, then a `Triage: lens=tier, ...` line. Otherwise do this: complete it yourself by the rules in "Completing the map" in `skills/grounding-review/references/triage-tiers.md`, one entry per lens in Step 2's order, then write the `Triage: lens=tier, ...` line. Either way, failed, empty or unknown triage results become `full-lens` and never narrow coverage. Use the completed map in Step 3.
 
-```bash
-playbook review triage-merge --lenses <comma separated lens names> --tiers <file>
-```
-
-It prints the full tier map as JSON, one entry per lens Step 2 selected, then a `Triage: lens=tier, ...` line. Failed, empty or unknown triage results become `full-lens` and never narrow coverage (rules in the triage-tiers reference). Use the printed map in Step 3.
-
-Report the `Triage:` line it printed (e.g. "Triage: security=full-lens, docs=cheap-check, perf=skip"), the same way Step 2 reports which reviewers it selected and why.
+Report the `Triage:` line (e.g. "Triage: security=full-lens, docs=cheap-check, perf=skip"), the same way Step 2 reports which reviewers it selected and why.
 
 ## Step 2e: Load skills and reference files
 
@@ -182,10 +181,10 @@ If you have no `Agent` tool (a delegated or forked caller), run the selected len
 
 **Concurrency cap (MUST).** Dispatch at most 8 reviewers at once. When the selected set (Step 2) is 8 or fewer, dispatch it in one wave exactly as below. When it's larger (only possible under `--all`, up to 14 lenses), split into waves of at most 8: issue the first wave's `Agent` calls in one message, wait for them to return, then issue the remaining lenses as a second wave. This bounds concurrent spawns; it never drops a lens to stay under the cap; every selected reviewer still runs, just possibly across two waves instead of one.
 
-For each lens in a wave, read its tier from the map `triage-merge` printed in Step 2d before dispatching (it is already complete, so no lens lacks a tier). Dispatch by tier:
+For each lens in a wave, read its tier from the map Step 2d completed before dispatching (it is already complete, so no lens lacks a tier). Dispatch by tier:
 
-- **`full-lens`:** dispatch a `reviewer` subagent (`subagent_type: playbook:reviewer`, or a `reviewer-low` or `reviewer-xhigh` variant the session has, chosen by "Pick the tier" in `playbook:delegating-subagents`) as everything below through "Instruct each to" describes. It loads `playbook:grounding-review` and, when `playbook review ref <lens>` returns a reference file for its lens rather than `SKILL.md`, only that reference file. It never loads `playbook:writing-style`.
-- **`cheap-check`:** dispatch a `cheap-checker` subagent (`subagent_type: playbook:cheap-checker`) instead of `reviewer`. Its prompt names the lens's narrow concern, the PR diff and `HEAD_SHA`, the absolute `$WT` path (or the in-place note when `WT` is empty), same conventions as the `reviewer` dispatch below, and ONE reference file path resolved with `playbook review ref <lens>`. Read `playbook skill ref grounding-review triage-tiers` and follow it for the concern text, the absolute path rule and the `SKILL.md` fallback.
+- **`full-lens`:** dispatch a `reviewer` subagent (`subagent_type: playbook:reviewer`, or a `reviewer-low` or `reviewer-xhigh` variant the session has, chosen by "Pick the tier" in `playbook:delegating-subagents`) as everything below through "Instruct each to" describes. It loads `playbook:grounding-review` and, when the lens table in the triage-tiers reference maps its lens to a reference file rather than `SKILL.md`, only that reference file. It never loads `playbook:writing-style`.
+- **`cheap-check`:** dispatch a `cheap-checker` subagent (`subagent_type: playbook:cheap-checker`) instead of `reviewer`. Its prompt names the lens's narrow concern, the PR diff and `HEAD_SHA`, the absolute `$WT` path (or the in-place note when `WT` is empty), same conventions as the `reviewer` dispatch below, and ONE absolute reference file path for its lens. Read `skills/grounding-review/references/triage-tiers.md` in this plugin and follow it for the concern text, the lens to file table, the absolute path rule and the `SKILL.md` fallback.
 - **`skip`:** dispatch nothing for that lens and track it as skipped in the `Triage:` line Step 2d reports. A skipped lens is never conflated with "returned nothing" below (rule in the triage-tiers reference).
 
 Spawn each wave **in parallel** (one message, multiple `Agent` calls). The `reviewer` agent is structurally read-only (Read/Grep/Glob only, no Edit/Write/Bash) and pins its own model tier, so the orchestrator no longer sets `model` per call; `cheap-checker` is the same shape (Read/Grep/Glob/Skill, its own pinned `haiku` model). Each reviewer prompt MUST include: its focus area (from the table), the PR diff and `HEAD_SHA`, numbered excerpts of each changed file, the scoped test command and the stated limit to read beyond them only when needed (build it once per run, per "Review brief builder" in `skills/delegating-subagents/references/briefs.md`), the instruction to load `playbook:grounding-review` (plus its mapped reference file), the absolute `$WT` path (or a note that the tree is in-place if `WT` is empty) with the instruction "Read and grep files under <WT>; do not install or build anything.", the `CHECK_OUTPUT` captured in Step 2b verbatim under a heading "Check suite output (from orchestrator)", and, when Step 2c loaded anything, a memory slice: facts anchored to a file touched in the diff, or otherwise related to the lens's focus area (for example, security-tagged facts for the security lens), listed by one-line hook or short body under a heading "Relevant memory (from orchestrator)". No matching facts means no section, not an empty placeholder.
@@ -205,7 +204,7 @@ For full-lens dispatches, instruct the reviewer to:
 
 **A silent reviewer is NOT a reviewer with zero findings.** This is the single most important rule in this command (`playbook:delegating-subagents`).
 
-The `reviewer` agent is structurally read-only (Read, Grep, Glob, Skill), so it cannot write its findings to a file. `playbook agents check` forbids `Write` and `Bash` for that tier by design, and granting them would fail CI, so the return value is the only channel there is. In measured use, Agent-tool return values have failed outright. Treat a swarm as likely to lose lenses.
+The `reviewer` agent is structurally read-only (Read, Grep, Glob, Skill), so it cannot write its findings to a file. The repo's agent checks forbid `Write` and `Bash` for that tier by design, and granting them would fail CI, so the return value is the only channel there is. In measured use, Agent-tool return values have failed outright. Treat a swarm as likely to lose lenses.
 
 Track three outcomes per dispatched lens (whichever of `reviewer` or `cheap-checker` its tier actually sent) and carry them into Step 4's verdict:
 
@@ -253,7 +252,7 @@ Show this plain report only in `SELF_MODE` or when nothing is postable. Otherwis
 
 ### Draft the comments (non-self runs only)
 
-Skip this in `SELF_MODE`, or when nothing is postable: the plain report above is the deliverable, no comment is drafted, and Step 6 stops. Otherwise, with the sweep done, load `playbook:writing-style` now. Draft one comment body for every swept finding that is not `Report-only`, from its label, problem, consequence and fix, applying that skill's GitHub rules. Then read its `github-review-comments`, `github-prohibited`, `examples` and `imperfections` references (`playbook skill ref writing-style <name>` prints each path). Each body starts with the bare plain-text label, never bold, and carries no `file:line` prefix. It MAY hold a ```suggestion``` block when the fix is mechanical.
+Skip this in `SELF_MODE`, or when nothing is postable: the plain report above is the deliverable, no comment is drafted, and Step 6 stops. Otherwise, with the sweep done, load `playbook:writing-style` now. Draft one comment body for every swept finding that is not `Report-only`, from its label, problem, consequence and fix, applying that skill's GitHub rules. Then read its `github-review-comments`, `github-prohibited`, `examples` and `imperfections` references (each is `references/<name>.md` in the `writing-style` skill's folder). Each body starts with the bare plain-text label, never bold, and carries no `file:line` prefix. It MAY hold a ```suggestion``` block when the fix is mechanical.
 
 Present the report with each draft shown under its finding as a `Draft:` block. Each draft is the final text, in the humane `playbook:writing-style` register, not the terse operator voice: label, voice, no dashes, GitHub rules all applied. Nothing is rewritten between this preview and the post, so what the user reads is exactly what posts. If the user asks for a change to a draft, redraft it with `playbook:writing-style` and show the new preview before posting.
 
@@ -304,10 +303,11 @@ Never fabricate URLs; use the `html_url` the API returns.
 
 **Close any reviewer subagent from Step 3 that is still alive first**, whether the review completed, failed, was skipped, or aborted mid-swarm.
 
-Then, if `WT` is not empty, always run:
+Then, if `WT` is not empty, always remove the review worktree. Intent: review-worktree-teardown. If the session's tool map (printed at session start) lists it, use that command with `"$WT"`. Otherwise do this:
 
 ```bash
-playbook worktree review teardown "$WT"
+git worktree remove --force --force "$WT"
+git worktree prune
 ```
 
 Run this whether the review completed, failed, was skipped, or was aborted mid-swarm. It's a no-op if the worktree is already gone.
