@@ -83,7 +83,7 @@ Not every category applies to every diff. Focus on what's relevant; skip categor
 
 Each path above is relative to THIS skill's own directory, the path the Skill tool reports as "Base directory for this skill" when `playbook:grounding-review` is invoked, not relative to the caller's working directory or any target repo being reviewed.
 
-A lens-scoped reviewer dispatched by `/playbook:deep-review` or `/playbook:implement` does not locate its reference file itself. A `cheap-checker` never invokes this skill and reads only the resolved path it is handed. The orchestrator resolves the matching file to an absolute path instead, from the base directory the Skill tool reported when it invoked this skill (the lens table is in `references/triage-tiers.md`), and hands that agent the resolved path. This is necessary because a reviewer with no `Bash` cannot expand `$CLAUDE_PLUGIN_ROOT` itself, and `Read` requires an absolute path either way.
+A lens-scoped reviewer dispatched by `/playbook:deep-review` or `/playbook:implement` does not locate its reference file itself. A `cheap-checker` never invokes this skill and reads only the resolved path it is handed. The orchestrator resolves the matching file to an absolute path instead, from the base directory the Skill tool reported when it invoked this skill (the lens table is in `references/triage-tiers.md`), and hands that agent the resolved path. This is necessary because a reviewer cannot look up that base directory itself and `Read` needs an absolute path, and `Read` requires an absolute path either way.
 
 An unscoped reviewer (`/playbook:quick-review`'s single pass) invokes this skill directly, reads the base directory the Skill tool reports, and combines it with each relative path above to read all 7.
 

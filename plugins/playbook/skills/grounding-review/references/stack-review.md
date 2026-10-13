@@ -1,12 +1,12 @@
 # Reviewing a pull request stack
 
-Read this after Step 1 of the review command has resolved `PR_NUMBER`. A stack is a chain of PRs where each one targets the branch of the PR below it. The design is in `docs/adr/0019-pr-stack-review.md`.
+Read this after Step 1 of the review command has resolved `PR_NUMBER`. A stack is a chain of PRs where each one targets the branch of the PR below it.
 
 ## 1. Detect
 
 Read the two limits, `review.stackMaxPrs` and `review.stackMaxLines`. Intent: config-get. If the session's tool map (printed at session start) lists it, use that command for each key. Otherwise do this: use the defaults, 6 PRs and 3000 changed lines.
 
-Then find the stack. Intent: pr-stack. If the session's tool map lists it, use that command with `<PR_NUMBER> --json --max-prs <stackMaxPrs> --max-lines <stackMaxLines>`. If it fails, or the JSON has `in_stack: false`, the PR is not in a stack: stop reading this file, say nothing about stacks, and review exactly as the command says. Print each entry of `warnings` once.
+Then find the stack. Intent: pr-stack. If the session's tool map lists it, use that command with the arguments as one quoted string: `"<PR_NUMBER> --json --max-prs <stackMaxPrs> --max-lines <stackMaxLines>"`. If it fails, or the JSON has `in_stack: false`, the PR is not in a stack: stop reading this file, say nothing about stacks, and review exactly as the command says. Print each entry of `warnings` once.
 
 Otherwise do this, by branch names:
 
@@ -49,7 +49,7 @@ Review only this PR's own diff against its real base, the parent PR's branch fro
 
 Whole-stack scope only.
 
-Intent: pr-stack. If the session's tool map (printed at session start) lists it, use that command with `<PR_NUMBER> --context --max-prs <n> --max-lines <n>`. It prints `context_file`, `stack_file` and one `diff_file_<n>` per open PR. Otherwise do this, in `/tmp/pr-stack-<PR_NUMBER>/`: write each open PR's diff with `gh pr diff <n> > pr-<n>.diff` (that path is its `diff_file`), and write `context.md` (the `context_file`) listing every PR bottom first with its number, title, role (REVIEW, CONTEXT for merged, SKIPPED for closed), branch and base, its description cut to a few paragraphs, and for a merged PR its files from `gh pr view <n> --json body,files`. The `stack.json` from section 1 is the `stack_file`.
+Intent: pr-stack. If the session's tool map (printed at session start) lists it, use that command with the arguments as one quoted string: `"<PR_NUMBER> --context --max-prs <n> --max-lines <n>"`. It prints `context_file`, `stack_file` and one `diff_file_<n>` per open PR. Otherwise do this, in `/tmp/pr-stack-<PR_NUMBER>/`: write each open PR's diff with `gh pr diff <n> > pr-<n>.diff` (that path is its `diff_file`), and write `context.md` (the `context_file`) listing every PR bottom first with its number, title, role (REVIEW, CONTEXT for merged, SKIPPED for closed), branch and base, its description cut to a few paragraphs, and for a merged PR its files from `gh pr view <n> --json body,files`. The `stack.json` from section 1 is the `stack_file`.
 
 Read `context_file` once. Pass its path and every `diff_file` path to the reviewer or reviewers, so the whole stack is read with one context. Merged PRs appear in `context_file` as a short summary. If a summary is too thin to follow the code, summarize that PR with the agent routing gives for the `mechanical` kind (see `playbook:delegating-subagents`), not with the review model.
 
@@ -69,7 +69,7 @@ The Verification Sweep checks the anchor: the finding must sit on the PR that ow
 
 Not in `SELF_MODE` (report only, set only by `--self` or `--no-post`). Otherwise, after the tier question, write the kept findings as JSON (`file`, `line`, `body`, `pr`) and map them:
 
-Intent: pr-stack. If the session's tool map (printed at session start) lists it, use its findings mapping (see its `--help`) with `--stack <stack_file> --findings <findings.json> --out <mapped.json>`. `mapped.json` has `by_pr`, `unmapped` and `stale`. Otherwise do this: re-read each open PR with `gh pr view <n> --json state,headRefOid,baseRefName`. A PR that is no longer open, has a new head SHA, or has a new base is stale. Then place each finding by the new side of the hunks in each open PR's `diff_file`. A finding that names a PR goes to that PR when its diff holds the `file:line`; otherwise it is unmapped. A finding that names none goes to the topmost open PR whose diff holds the line. A finding with no file or line, on a line no open PR changes, or naming a merged, closed or unknown PR is unmapped. A finding placed on a stale PR is held. The rest form `by_pr`, each comment as `{"path", "line", "side": "RIGHT", "body"}`.
+Intent: pr-stack. If the session's tool map (printed at session start) lists it, use its findings mapping with the one quoted string `"map --stack <stack_file> --findings <findings.json> --out <mapped.json>"`. `mapped.json` has `by_pr`, `unmapped` and `stale`. Otherwise do this: re-read each open PR with `gh pr view <n> --json state,headRefOid,baseRefName`. A PR that is no longer open, has a new head SHA, or has a new base is stale. Then place each finding by the new side of the hunks in each open PR's `diff_file`. A finding that names a PR goes to that PR when its diff holds the `file:line`; otherwise it is unmapped. A finding that names none goes to the topmost open PR whose diff holds the line. A finding with no file or line, on a line no open PR changes, or naming a merged, closed or unknown PR is unmapped. A finding placed on a stale PR is held. The rest form `by_pr`, each comment as `{"path", "line", "side": "RIGHT", "body"}`.
 
 Show `unmapped` and `stale` to the user with their reasons and post none of those: a line no open PR changes, a merged or closed PR, a PR pushed to or retargeted since the review started. Offer to re-run detection when anything is `stale`.
 

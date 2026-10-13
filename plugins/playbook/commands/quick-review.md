@@ -54,13 +54,14 @@ With no argument, the in-place predicate runs the same check. If the current bra
 **Worktree mode** (all other cases): set up an isolated, detached worktree at `HEAD_SHA`. When Step 1's tool ran, it already did this; if it reports `error: worktree setup failed`, abort. Otherwise set it up yourself. Intent: review-worktree-setup. If the session's tool map (printed at session start) lists it, use that command with `PR_NUMBER` and `HEAD_SHA`, and capture stdout only: it prints the worktree path on stdout and sends git's progress to stderr on purpose, so folding them together corrupts the path. Otherwise do this:
 
 ```bash
-WT="$(git rev-parse --path-format=absolute --git-common-dir)/review-worktrees/$PR_NUMBER-${HEAD_SHA:0:7}"
+DIR="$(git rev-parse --path-format=absolute --git-common-dir)/review-worktrees/$PR_NUMBER-${HEAD_SHA:0:7}"
+[ ! -e "$DIR" ] || { echo "another review of this PR may be running: $DIR"; exit 1; }
 git fetch "$(gh repo view --json url -q .url)" "refs/pull/$PR_NUMBER/head"
 git cat-file -e "$HEAD_SHA^{commit}"
-mkdir -p "$(dirname "$WT")" && git worktree add --detach "$WT" "$HEAD_SHA"
+mkdir -p "$(dirname "$DIR")" && git worktree add --detach --lock --reason "review pr=$PR_NUMBER ts=$(date +%s)" "$DIR" "$HEAD_SHA" && WT="$DIR"
 ```
 
-If `$WT` already exists, another review of this PR may be running: stop and say so. If the fetch, the `cat-file` check (the PR was force-pushed: re-run) or the `worktree add` fails, show the error and stop. No fallback, no degraded mode.
+`WT` is set only after the worktree is added, so a failed setup leaves it empty and teardown skips it. If the fetch, the `cat-file` check (the PR was force-pushed: re-run) or the `worktree add` fails, show the error and stop. No fallback, no degraded mode.
 
 When in worktree mode, read and grep all files under `$WT` instead of the local working tree. `WT` is not empty exactly when a worktree was created: use that to decide the teardown step.
 
@@ -91,7 +92,7 @@ Findings are plain: a label, `file:line`, the exact evidence, a short failure sc
 
 ## Step 1: Resolve PR and gather context
 
-Resolve the PR, work out `SELF_MODE`, decide in-place or worktree and set the worktree up, and create the folder of `REVIEW_JSON`. Intent: review-prepare. If the session's tool map (printed at session start) lists it, use that command with the `quick` kind and `$ARGUMENTS`, adding `--auto` when Step 0 read auto mode (it does not skip the post question). It prints these lines: `PR`, `REPO`, `PR_NUMBER`, `HEAD_SHA`, `AUTHOR`, `SELF_REVIEW`, `SELF_MODE`, `MODE`, `WT` (empty when in place) and `REVIEW_JSON`. On a problem it prints `error: ...` and exits 1: stop and show it. Otherwise do this:
+Resolve the PR, work out `SELF_MODE`, decide in-place or worktree and set the worktree up, and create the folder of `REVIEW_JSON`. Intent: review-prepare. If the session's tool map (printed at session start) lists it, use that command with the `quick` kind and `"$ARGUMENTS"` as one quoted argument, adding `--auto` when Step 0 read auto mode (it does not skip the post question). It prints these lines: `PR`, `REPO`, `PR_NUMBER`, `HEAD_SHA`, `AUTHOR`, `SELF_REVIEW`, `SELF_MODE`, `MODE`, `WT` (empty when in place) and `REVIEW_JSON`. On a problem it prints `error: ...` and exits 1: stop and show it. Otherwise do this:
 
 1. Resolve `PR_NUMBER` as Argument parsing above says.
 2. Run `gh repo view --json nameWithOwner -q .nameWithOwner` for `REPO`, `gh pr view <PR_NUMBER> --json headRefOid,author -q '.headRefOid + " " + .author.login'` for `HEAD_SHA` and `AUTHOR`, and `gh api /user -q .login` for your login. `SELF_REVIEW` is true when `AUTHOR` is your login. `SELF_MODE` is true only when `--self` or `--no-post` was passed.
@@ -119,7 +120,7 @@ Reading and analysing the changed files is where main-context rot accumulates, s
 
 Before spawning, `SELF_MODE` is already settled (Step 1), so decide here whether anything can be posted. The orchestrator invokes `playbook:grounding-review` now, for the sweep and the report format, and loads no `playbook:writing-style` here.
 
-Spawn ONE `reviewer` subagent at **medium effort** (Opus model, set by the agent file, and the reviewer's own effort). Resolve the reviewer under the user's effort ceiling with a `medium` cap. Intent: effort-resolve. If the session's tool map (printed at session start) lists it, use that command for the `reviewer` agent with `--cap medium --json` and spawn the `subagentType` it returns: `playbook:reviewer` normally, or a lower variant such as `reviewer-low` when the user's ceilings are lower. The cap never raises anything and a lower user ceiling still wins. If the command fails, spawn `playbook:reviewer`. Otherwise do this: spawn `playbook:reviewer`, which ships at medium. The orchestrator doesn't set `model` on this call. Because the review is single-pass, its focus is the ENTIRE diff (logic, tests, security, data, types, perf, docs), not one lens.
+Spawn ONE `reviewer` subagent at **medium effort** (Opus model, set by the agent file, and the reviewer's own effort). Resolve the reviewer under the user's effort ceiling with a `medium` cap. Intent: effort-resolve. If the session's tool map (printed at session start) lists it, use that command with `agents reviewer --cap medium --json` and spawn the `subagentType` it returns: `playbook:reviewer` normally, or a lower variant such as `reviewer-low` when the user's ceilings are lower. The cap never raises anything and a lower user ceiling still wins. If the command fails, spawn `playbook:reviewer`. Otherwise do this: spawn `playbook:reviewer`, which ships at medium. The orchestrator doesn't set `model` on this call. Because the review is single-pass, its focus is the ENTIRE diff (logic, tests, security, data, types, perf, docs), not one lens.
 
 The subagent prompt MUST include:
 

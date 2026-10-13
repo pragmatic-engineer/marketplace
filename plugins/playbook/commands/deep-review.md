@@ -103,20 +103,21 @@ Findings are plain: label, `file:line`, evidence, a short failure scenario, and 
 
 ## Step 1: Resolve PR and gather context
 
-Resolve the PR (a number or `#N`, else a branch name, else the current branch's PR), work out `SELF_MODE`, decide in-place or worktree and set the worktree up, and create the folder of `REVIEW_JSON`. Intent: review-prepare. If the session's tool map (printed at session start) lists it, use that command with the `deep` kind and `$ARGUMENTS`, adding `--auto` when Step 0 read auto mode (it does not skip the post question). It prints these lines: `PR`, `REPO`, `PR_NUMBER`, `HEAD_SHA`, `AUTHOR`, `SELF_REVIEW`, `SELF_MODE`, `MODE`, `WT` (empty when in place) and `REVIEW_JSON`. On a problem it prints `error: ...` and exits 1: stop and show it. Otherwise do this:
+Resolve the PR (a number or `#N`, else a branch name, else the current branch's PR), work out `SELF_MODE`, decide in-place or worktree and set the worktree up, and create the folder of `REVIEW_JSON`. Intent: review-prepare. If the session's tool map (printed at session start) lists it, use that command with the `deep` kind and `"$ARGUMENTS"` as one quoted argument, adding `--auto` when Step 0 read auto mode (it does not skip the post question). It prints these lines: `PR`, `REPO`, `PR_NUMBER`, `HEAD_SHA`, `AUTHOR`, `SELF_REVIEW`, `SELF_MODE`, `MODE`, `WT` (empty when in place) and `REVIEW_JSON`. On a problem it prints `error: ...` and exits 1: stop and show it. Otherwise do this:
 
 1. Resolve `PR_NUMBER`: the first word that is a number or `#N`; else a branch name that passes `git check-ref-format --branch <arg>`, resolved with `gh pr list --head <branch> --json number -q '.[0].number'` (none found: stop with `error: no open PR for branch <name>; create one first or pass a PR number`); else the current branch's PR from `gh pr view --json number -q .number`.
 2. Run `gh repo view --json nameWithOwner -q .nameWithOwner` for `REPO`, `gh pr view <PR_NUMBER> --json headRefOid,author -q '.headRefOid + " " + .author.login'` for `HEAD_SHA` and `AUTHOR`, and `gh api /user -q .login` for your login. `SELF_REVIEW` is true when `AUTHOR` is your login.
 3. In place when `git rev-parse HEAD` equals `HEAD_SHA` and `git status --porcelain --untracked-files=no` is empty; `WT` is then empty. Otherwise set up the review worktree (Intent: review-worktree-setup; if the tool map lists it, use that command with `PR_NUMBER` and `HEAD_SHA` and capture stdout only), or by hand:
 
    ```bash
-   WT="$(git rev-parse --path-format=absolute --git-common-dir)/review-worktrees/$PR_NUMBER-${HEAD_SHA:0:7}"
+   DIR="$(git rev-parse --path-format=absolute --git-common-dir)/review-worktrees/$PR_NUMBER-${HEAD_SHA:0:7}"
+[ ! -e "$DIR" ] || { echo "another review of this PR may be running: $DIR"; exit 1; }
    git fetch "$(gh repo view --json url -q .url)" "refs/pull/$PR_NUMBER/head"
    git cat-file -e "$HEAD_SHA^{commit}"
-   mkdir -p "$(dirname "$WT")" && git worktree add --detach "$WT" "$HEAD_SHA"
+   mkdir -p "$(dirname "$DIR")" && git worktree add --detach --lock --reason "review pr=$PR_NUMBER ts=$(date +%s)" "$DIR" "$HEAD_SHA" && WT="$DIR"
    ```
 
-   If `$WT` already exists, another review of this PR may be running: stop and say so. If a command fails, show the error and stop.
+   `WT` is set only after the worktree is added, so a failed setup leaves it empty and teardown skips it. If a command fails, show the error and stop.
 4. Set `REVIEW_JSON=/tmp/$REPO/deep-review-$PR_NUMBER.json` and run `mkdir -p "$(dirname "$REVIEW_JSON")"`.
 
 Then read the PR with the number you resolved:
