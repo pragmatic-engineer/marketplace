@@ -2,7 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Igor Santos
 # SPDX-License-Identifier: Apache-2.0
 #
-# bump-marketplace.sh: pin the playbook plugin to a release.
+# bump-marketplace.sh: pin the playbook-hooks plugin to a playbook release.
+# The entry is created on the first run and updated after that.
 # Usage: bump-marketplace.sh <version-without-v> [marketplace-json]
 # Downloads playbook-plugin-<version>.zip, verifies its build provenance
 # attestation, then writes the release URL and the sha256 of those exact bytes
@@ -13,7 +14,7 @@ version="${1:?usage: bump-marketplace.sh <version> [marketplace-json]}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 mkt="${2:-$ROOT/.claude-plugin/marketplace.json}"
 repo="pragmatic-engineer/playbook"
-asset="playbook-plugin-${version}.zip"
+asset="playbook-hooks-plugin-${version}.zip"
 
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "::error::refusing unexpected version '${version}'" >&2
@@ -34,6 +35,18 @@ fi
 
 url="https://github.com/${repo}/releases/download/v${version}/${asset}"
 jq --arg url "$url" --arg sha "$sha" '
-  (.plugins[] | select(.name == "playbook") | .source) |= (.source = "archive" | .url = $url | .sha256 = $sha)
+  def entry: {
+    name: "playbook-hooks",
+    description: "The playbook binary hooks for Claude Code: session context, worktree creation and removal, and the installer shim.",
+    source: {source: "archive", url: $url, sha256: $sha},
+    category: "workflow",
+    homepage: "https://github.com/pragmatic-engineer/playbook",
+    license: "Apache-2.0",
+    author: .plugins[0].author
+  };
+  if any(.plugins[]; .name == "playbook-hooks")
+  then (.plugins[] | select(.name == "playbook-hooks") | .source) |= {source: "archive", url: $url, sha256: $sha}
+  else .plugins += [entry]
+  end
 ' "$mkt" >"$work/marketplace.json"
 cp "$work/marketplace.json" "$mkt"

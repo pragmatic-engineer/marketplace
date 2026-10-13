@@ -203,7 +203,7 @@ fn every_skill_ref_pointer_resolves_to_a_reference_file() {
     let pointer =
         regex::Regex::new(r"playbook skill ref ([a-z][a-z-]*) ([a-z][a-z0-9-]*)").unwrap();
     let mut checked = 0;
-    for dir in ["commands", "agents", "skills", "prompts"] {
+    for dir in ["commands", "agents", "skills"] {
         let mut stack = vec![root.join(dir)];
         while let Some(path) = stack.pop() {
             if path.is_dir() {

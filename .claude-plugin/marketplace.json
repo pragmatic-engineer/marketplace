@@ -9,14 +9,10 @@
   "plugins": [
     {
       "name": "playbook",
-      "description": "A pragmatic Claude Code toolkit: opinionated skills, slash commands, subagents, and safety and state hooks.",
-      "source": {
-        "source": "archive",
-        "url": "https://github.com/pragmatic-engineer/playbook/releases/download/v0.25.0/playbook-plugin-0.25.0.zip",
-        "sha256": "c4493dca3d4bd4bfe39cb844a2bd9b0514cf2cfdc667ca298d01093ae92a3493"
-      },
+      "description": "A pragmatic Claude Code toolkit: opinionated skills, slash commands and subagents for planning, review, memory, and guarded editing.",
+      "source": "./plugins/playbook",
       "category": "workflow",
-      "homepage": "https://github.com/pragmatic-engineer/playbook",
+      "homepage": "https://github.com/pragmatic-engineer/skills",
       "license": "Apache-2.0",
       "author": {
         "name": "Igor Santos",

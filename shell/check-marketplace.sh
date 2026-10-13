@@ -5,7 +5,8 @@
 # check-marketplace.sh: pin the keyless-install invariant. Every plugin source
 # MUST be a url or archive source over https so users without SSH keys can
 # install. A github source clones via SSH and breaks keyless installs. An
-# archive source MUST also carry a 64 hex character sha256.
+# archive source MUST also carry a 64 hex character sha256. A relative path
+# source (a plugin that lives in this repo) is allowed and must exist here.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MKT="$ROOT/.claude-plugin/marketplace.json"
@@ -16,6 +17,19 @@ n=$(jq '.plugins | length' "$MKT")
 i=0
 while [ "$i" -lt "$n" ]; do
   name=$(jq -r ".plugins[$i].name" "$MKT")
+  if [ "$(jq -r ".plugins[$i].source | type" "$MKT")" = "string" ]; then
+    rel=$(jq -r ".plugins[$i].source" "$MKT")
+    case "$rel" in
+      ./*) ;;
+      *) echo "FAIL $name relative source must start with ./ (got $rel)"; fail=1; i=$((i+1)); continue ;;
+    esac
+    if [ -f "$ROOT/$rel/.claude-plugin/plugin.json" ]; then
+      echo "PASS $name source is a relative path with a manifest: $rel"
+    else
+      echo "FAIL $name relative source $rel has no .claude-plugin/plugin.json"; fail=1
+    fi
+    i=$((i+1)); continue
+  fi
   stype=$(jq -r ".plugins[$i].source.source" "$MKT")
   surl=$(jq -r ".plugins[$i].source.url" "$MKT")
   ssha=$(jq -r ".plugins[$i].source.sha256 // empty" "$MKT")

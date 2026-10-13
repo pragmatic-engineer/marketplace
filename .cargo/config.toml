@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Igor Santos
+# SPDX-License-Identifier: Apache-2.0
+#
+# Plugin root for the checks crate. The tests read the skills, commands and
+# agents through this path. `relative = true` resolves it against the directory
+# that holds `.cargo`, so it stays right wherever the checkout lives.
+[env]
+PLAYBOOK_REPO_ROOT = { value = "plugins/playbook", relative = true }

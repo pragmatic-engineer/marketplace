@@ -1,17 +1,19 @@
-name: bump
+name: pin-hooks
 
 on:
+  schedule:
+    - cron: "37 6 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: bump
+  group: pin-hooks
   cancel-in-progress: false
 
 jobs:
-  bump:
+  pin:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -19,7 +21,7 @@ jobs:
       pull-requests: write
       actions: write
     steps:
-      - name: Check out the marketplace
+      - name: Check out the repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
@@ -33,14 +35,21 @@ jobs:
           set -euo pipefail
           # Only plain vX.Y.Z tags are playbook releases. The repo also publishes
           # telemetry-vX.Y.Z and code-vX.Y.Z, and GitHub's "latest" can be one of those.
-          tag="$(gh release list --repo pragmatic-engineer/playbook --limit 100 --json tagName,isDraft,isPrerelease \
-            --jq '[.[] | select(.isDraft == false and .isPrerelease == false) | .tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | first // empty')"
+          tag=""
+          for t in $(gh release list --repo pragmatic-engineer/playbook --limit 100 --json tagName,isDraft,isPrerelease \
+            --jq '.[] | select(.isDraft == false and .isPrerelease == false) | .tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))'); do
+            if gh release view "$t" --repo pragmatic-engineer/playbook --json assets --jq '.assets[].name' | grep -qx "playbook-hooks-plugin-${t#v}.zip"; then
+              tag="$t"
+              break
+            fi
+          done
           if [ -z "$tag" ]; then
-            echo "::error::no vX.Y.Z release found in pragmatic-engineer/playbook." >&2
-            exit 1
+            echo "No playbook release carries a hooks plugin archive yet. Nothing to pin."
+            echo "outdated=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           latest="${tag#v}"
-          current="$(jq -r '.plugins[] | select(.name == "playbook") | .source.url' .claude-plugin/marketplace.json | sed -n 's#.*/download/v\([0-9][0-9.]*\)/.*#\1#p')"
+          current="$(jq -r '.plugins[] | select(.name == "playbook-hooks") | .source.url' .claude-plugin/marketplace.json | sed -n 's#.*/download/v\([0-9][0-9.]*\)/.*#\1#p')"
           echo "latest=${latest}" >> "$GITHUB_OUTPUT"
           if [ "$latest" = "$current" ]; then
             echo "Marketplace is current at ${current}."
@@ -66,8 +75,8 @@ jobs:
           FILE_PATH: .claude-plugin/marketplace.json
         run: |
           set -euo pipefail
-          branch="bump/v${VERSION}"
-          title="chore(deps): bump playbook to ${VERSION}"
+          branch="bump/hooks-v${VERSION}"
+          title="chore(deps): pin playbook-hooks to ${VERSION}"
 
           # Drop a branch left behind by a failed run.
           if gh api "repos/${REPO}/git/ref/heads/${branch}" >/dev/null 2>&1; then
@@ -96,7 +105,7 @@ jobs:
 
           pr="$(gh api -X POST "repos/${REPO}/pulls" \
             -f "title=${title}" -f "head=${branch}" -f base=main \
-            -f "body=Automated bump of the playbook pin to ${VERSION}, pinned from the attested release archive. Squash merged once the checks pass." \
+            -f "body=Automated pin of the playbook-hooks archive to ${VERSION}, pinned from the attested release archive. Squash merged once the checks pass." \
             --jq .number)"
           echo "Opened pull request #${pr}."
 
