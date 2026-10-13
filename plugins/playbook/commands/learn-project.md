@@ -35,15 +35,13 @@ Parse `$ARGUMENTS`:
 
 ## Step 0: Read the run mode
 
-Do this first, before Phase 0. Read the mode from the CLI:
+Do this first, before Phase 0.
 
-```bash
-playbook run-context --command learn-project --args "$ARGUMENTS"
-```
+**Memory tool (MUST).** This command builds the memory store and its graph, and it reads the store through the memory tool. Intent: memory-context. Intent: memory-rebuild. If the session's tool map (printed at session start) does not list them, stop with one line and nothing else: "/playbook:learn-project needs a memory tool, and this session's tool map does not list one, so nothing was read or written." Otherwise carry on and use those commands where the phases below name them.
 
-The JSON has `mode`, `source`, `hook_mode`, `warning` and `ceiling`. Read `playbook skill ref delegating-subagents run-context` and follow it for the warning, the ceiling, exit 2, any other failure, and an outdated binary.
+Resolve whether this run is `ask` or `auto`. Intent: run-mode. If the session's tool map lists it, use that command with this command's name (`learn-project`) and `$ARGUMENTS`, and follow `../skills/delegating-subagents/references/run-context.md` (relative to this file) for its output: the warning, the effort ceiling, a conflicting-flags exit, and any other failure. Otherwise do this: the mode is `auto` when the arguments carry `--auto` and `ask` when they carry `--ask`. When both are given, stop with one line saying they conflict. With neither, run `printenv PLAYBOOK_MODE` and use its value when it is `ask` or `auto`; in every other case the mode is `ask`. There is no effort ceiling on this path.
 
-**Routing.** Where you choose what to spawn, also run `playbook route mechanical --json` and follow its `action` under the `routing.escalate` gate: on `ask` stop and ask the user, on `downgraded` (`deny`) use the lower tier it names, and in auto mode (`auto`) proceed and log the assumption. If the command fails, carry on.
+**Routing.** Where you choose what to spawn, pick the model for a `mechanical` task. Intent: route-model. If the session's tool map lists it, use that command for the `mechanical` kind and follow its `action` under the `routing.escalate` gate: on `ask` stop and ask the user, on `downgraded` (`deny`) use the lower tier it names, and in auto mode (`auto`) proceed and log the assumption. If the command fails, carry on. Otherwise do this: spawn each agent on the model its own agent file sets, and carry on.
 
 - **`ask` mode:** behave exactly as this file describes.
 - **`auto` mode:** follow the Auto path below.
@@ -54,11 +52,18 @@ In auto mode behave as `--stage`: collect and analyse, then write the candidates
 
 ## Phase 0: Preflight and scope
 
+Check the prerequisites. Intent: learn-preflight. If the session's tool map lists it, use that command. It prints `Repo:`, `Root:`, `Store:` and `Commits:` lines, then `gh:` and `acli:` probe lines (with `acli jira:` and `acli confluence:` auth lines when `acli` is present), then the JIRA project keys found in the last 500 commits as a count histogram. It exits 1 with `error: not in a git repo` outside a repository. Otherwise do this, and stop with that same error when the first command fails:
+
 ```bash
-playbook learn preflight
+git rev-parse --show-toplevel
+gh repo view --json nameWithOwner -q .nameWithOwner || git remote get-url origin
+git rev-list --count HEAD
+gh auth status >/dev/null 2>&1 && echo "gh: ok" || echo "gh: UNAVAILABLE (PRs skipped)"
+if acli --version; then acli jira auth status; acli confluence auth status; else echo "acli: absent"; fi
+git log --oneline -500 | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | sed 's/-[0-9]*$//' | sort | uniq -c | sort -rn | head -10
 ```
 
-It prints `Repo:`, `Root:`, `Store:` and `Commits:` lines, then `gh:` and `acli:` probe lines (with `acli jira:` and `acli confluence:` auth lines when `acli` is present), then the JIRA project keys found in the last 500 commits as a count histogram. It exits 1 with `error: not in a git repo` outside a repository.
+`REPO` is `<owner>/<repo>` (from the remote URL, drop the `.git` suffix, the scheme and the host) and the store is `~/.config/playbook/memory/<owner>/<repo>`.
 
 Then, before collecting:
 
@@ -68,9 +73,9 @@ Then, before collecting:
 
 ## Phase 1: Collect (parallel subagents)
 
-On `--refresh` only, before dispatching, run `playbook memory context --repo $REPO`: its facts block (`name: description` lines), not the full fact bodies. Include the result in each collector's prompt so it can flag what's already documented instead of silently re-discovering it, and note anything that looks stale against what it finds. Skip this on a fresh (non-`--refresh`) run: there's rarely anything in the store yet, and this command's job is building it, not consuming it.
+On `--refresh` only, before dispatching, run the memory-context command for `$REPO`: its facts block (`name: description` lines), not the full fact bodies. Include the result in each collector's prompt so it can flag what's already documented instead of silently re-discovering it, and note anything that looks stale against what it finds. Skip this on a fresh (non-`--refresh`) run: there's rarely anything in the store yet, and this command's job is building it, not consuming it.
 
-Run `playbook learn collect git structure` first. It counts the git history and reads the layout with no model, and prints one JSON object with a `git` key (contributors by name, churn hotspots, commit types and conventional-commit share, remote branch prefixes, recent tags, commits per month) and a `structure` key (top level, languages, entry points, build manifests with their scripts and targets, test and lint config, Docker, CI, IaC, migrations, model files, `scripts/`). Write the `git` value to `/tmp/learn-project/<owner>-<repo>/git-history.json` and the `structure` value to `code-structure.json`, so the analysts read the same files the collectors would have written. No collector is spawned for these two roles.
+Collect the git history and the layout first. Intent: learn-collect. If the session's tool map lists it, use that command for `git` and `structure`. It counts the git history and reads the layout with no model, and prints one JSON object with a `git` key (contributors by name, churn hotspots, commit types and conventional-commit share, remote branch prefixes, recent tags, commits per month) and a `structure` key (top level, languages, entry points, build manifests with their scripts and targets, test and lint config, Docker, CI, IaC, migrations, model files, `scripts/`). Write the `git` value to `/tmp/learn-project/<owner>-<repo>/git-history.json` and the `structure` value to `code-structure.json`, so the analysts read the same files the collectors would have written. No collector is spawned for these two roles. Otherwise do this: add a `git-history` and a `code-structure` collector to the dispatch below, briefed to cover the same fields and to write those two files.
 
 Dispatch the remaining collectors in parallel with `subagent_type: playbook:collector`. `collector` pins Haiku, the cost win this phase is built for. Each returns a compact structured summary (tight JSON or markdown) that cites paths/refs, NOT raw command output. Spawn each collector with a stable `name`.
 
@@ -95,7 +100,7 @@ Keep facts atomic: one concept per fact. Drop low-signal or self-evident facts.
 ## Phase 3: Classify, dedupe, plan
 
 - **Scope routing:** default `repo`. Mark `global` only when the fact is org/account-wide and not tied to this repo (company tooling, the Atlassian instance, standards seen across repos). A repo fact that contradicts a global one wins for this repo; note it with a `contradicts` edge.
-- **Dedupe:** run `playbook memory context --repo $REPO` once: its facts block already covers both project-scoped and global-scoped facts for this repo (global-scoped facts are always included), so one call replaces both index reads. Load the relevant fact files it names. If it prints `Memory context: none` on a repo that already has facts, stop and report the broken read rather than writing possible duplicates. If a fact already exists: skip it, unless `--refresh`, in which case update the file or write a successor carrying a `supersedes` edge. Never blind-duplicate.
+- **Dedupe:** run the memory-context command for `$REPO` once: its facts block already covers both project-scoped and global-scoped facts for this repo (global-scoped facts are always included), so one call replaces both index reads. Load the relevant fact files it names. If it prints `Memory context: none` on a repo that already has facts, stop and report the broken read rather than writing possible duplicates. If a fact already exists: skip it, unless `--refresh`, in which case update the file or write a successor carrying a `supersedes` edge. Never blind-duplicate.
 - **Plan:** show the user a concise table of candidate facts (title · scope · type · new/update/supersede). Ask once: "Write these to memory?" Proceed only on yes; honor a subset selection.
 
 ## Phase 4: Write memory
@@ -118,13 +123,9 @@ Then write each approved fact:
 
 `~/.config/playbook/data/memory.db` holds a single graph covering every fact, global, org, and project. It rebuilds automatically: the `rebuild-memory-graph` PostToolUse hook fires whenever a fact file under `~/.config/playbook/memory/` is saved, so once Phase 4 has written the facts the graph is already current. Normally you skip this phase.
 
-`--graph-only` forces a rebuild without re-collecting, for use after hand-editing fact files:
+`--graph-only` forces a rebuild without re-collecting, for use after hand-editing fact files: run the memory-rebuild command.
 
-```bash
-playbook memory rebuild
-```
-
-**Why a dedicated subcommand rather than invoking the hook.** The hook skips unless the write it was told about is under `~/.config/playbook/memory/`, which is right for a PostToolUse hook and leaves no way to force a full rebuild. This used to run `python3 hooks/rebuild-memory-graph.py < /dev/null`, because that script treated empty stdin as "rebuild everything". The Rust port dropped that branch deliberately (see `should_skip` in `crates/cli/src/hooks/rebuild_memory_graph.rs`), judging it unexercised by the hook's test suite. It was exercised, by this command. Faking a `tool_input` payload that names a path inside the memory dir would also work and is what the port's own doc calls the more fragile option, since it breaks silently the next time the skip logic changes.
+**Why a dedicated command rather than invoking the hook.** The hook skips unless the write it was told about is under `~/.config/playbook/memory/`, which is right for a PostToolUse hook and leaves no way to force a full rebuild. This used to run `python3 hooks/rebuild-memory-graph.py < /dev/null`, because that script treated empty stdin as "rebuild everything". The Rust port dropped that branch deliberately (see `should_skip` in `crates/cli/src/hooks/rebuild_memory_graph.rs`), judging it unexercised by the hook's test suite. It was exercised, by this command. Faking a `tool_input` payload that names a path inside the memory dir would also work and is what the port's own doc calls the more fragile option, since it breaks silently the next time the skip logic changes.
 
 It walks every fact under `~/.config/playbook/memory/`, derives each fact's scope (`global`, or `project` with its `owner/repo`), and writes `~/.config/playbook/data/memory.db` in one transaction. The fact files stay the source of truth, so the database is safe to delete: the next rebuild makes it again. Nodes are facts plus their `anchors:` code locations; edges are the `links:` between facts and the fact→code anchors. Report the node and edge counts, and flag any dangling edge.
 
