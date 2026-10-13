@@ -23,13 +23,9 @@ gh pr ready "$BRANCH"
 
 **Do NOT invoke `playbook:finish-pull-request` (it runs `/playbook:deep-review --self`), and do NOT pass `--ready` to `/playbook:create-pull-request`.** That step exists to guarantee a human is never the first reviewer of unreviewed code; Steps 8 and 9 above already satisfied that invariant for this Segment, more strongly, with a 5-lens swarm whose reviewers ran in fresh contexts that never saw the implementation. Reviewers are dispatched subagents, so they are fresh by construction. Record in the ledger which review satisfied the gate: `review: implement-step9 (5 lenses, <n> findings fixed)`.
 
-**2. Gate on required checks.** Poll with a deadline; never `--watch` unbounded.
+**2. Gate on required checks.** Poll with a deadline; never `--watch` unbounded. Intent: pr-ci-wait. If the session's tool map (printed at session start) lists it, use that command with `"$PR" --settle 120 --timeout 300 --interval 30` and the Bash `timeout` set to 600000. Otherwise do this: wait 120 seconds, then read `gh pr checks "$PR" --required --json name,bucket` every 30 seconds for up to 300 seconds, each read its own Bash call. `CI_VERDICT` is `NONE` for an empty list, `FAIL` when any bucket is `fail`, `CANCELLED` when none is `pending` and any is `cancel`, `PASS` when none is `pending`, and `TIMEOUT` when time runs out.
 
-```bash
-playbook pr ci-wait "$PR" --settle 120 --timeout 300 --interval 30
-```
-
-Run it with the Bash `timeout` set to 600000. On `CI_VERDICT=TIMEOUT` repeat it up to 5 times, then park the Segment. Waiting on required checks only (the default, no `--all`) is deliberate: the merge gate is what the repo enforces, not every check that exists. A failing NON-required check does not block the merge, but MUST be reported as a follow-up rather than silently dropped. `CI_VERDICT=NONE` (the repo requires no checks) is a legitimate pass; record it as `NONE`, never as `PASS`, so the ledger does not claim a gate that never ran. `CI_VERDICT=TIMEOUT` parks the Segment; do not merge a PR whose checks never finished.
+On `CI_VERDICT=TIMEOUT` repeat it up to 5 times, then park the Segment. Waiting on required checks only (the default, no `--all`) is deliberate: the merge gate is what the repo enforces, not every check that exists. A failing NON-required check does not block the merge, but MUST be reported as a follow-up rather than silently dropped. `CI_VERDICT=NONE` (the repo requires no checks) is a legitimate pass; record it as `NONE`, never as `PASS`, so the ledger does not claim a gate that never ran. `CI_VERDICT=TIMEOUT` parks the Segment; do not merge a PR whose checks never finished.
 
 **3. CI-fix loop (two budgets, counted separately).** **3 fix attempts** per Segment, matching the existing `--auto: WU fails after 3 retries -> stop` rule, plus **2 reruns** per Segment. A rerun is not a fix and MUST NOT consume the fix budget.
 
@@ -52,7 +48,7 @@ Either case: `gh run rerun <id> --failed`, then return to step 2. Max 2 reruns; 
 **4. Re-review the fix, tiered by what the fix actually is.** Re-running the full 5-lens swarm for a one-line format fix is waste; skipping review for a logic change is not. Classify the fix diff mechanically, do not judge:
 
 - **Tier 0, no re-review.** The fix diff is empty (rerun only), or the fix is confined to CI workflow config that touches no shipped code, or the fix is provably tool-generated. Prove the last case, don't assert it: from the pre-fix tree, re-run the formatter/codegen and confirm it reproduces the fix exactly (`git diff --quiet` against the fix's tree). If the tool reproduces it, there is no human-authored change to review.
-- **Tier 1, one scoped lens.** Touches production or test code, under 50 changed lines, and no file outside the Segment's `Files`. Dispatch ONE `reviewer-low` (the `subagentType` that `playbook effort resolve agents reviewer --json` returns, else `playbook:reviewer`, small diff per "Pick the tier" in `playbook:delegating-subagents`) with focus `correctness` (plus `tests` when the fix touched test files), scoped to `git diff <pre-fix-sha>..HEAD`, the fix diff only, never the whole Segment diff.
+- **Tier 1, one scoped lens.** Touches production or test code, under 50 changed lines, and no file outside the Segment's `Files`. Dispatch ONE `reviewer-low` (Intent: effort-resolve. If the session's tool map lists it, resolve the `reviewer` agent with that command and use the `subagentType` it returns. Otherwise use `playbook:reviewer`; small diff per "Pick the tier" in `playbook:delegating-subagents`) with focus `correctness` (plus `tests` when the fix touched test files), scoped to `git diff <pre-fix-sha>..HEAD`, the fix diff only, never the whole Segment diff.
 - **Tier 2, full Step 9 swarm scoped to this Segment.** Any one of: a file outside the Segment's `Files`; over 50 changed lines; a changed public signature, or a deleted or weakened assertion; the failing check was a security check (secret scanning, dependency/vulnerability scanning) rather than build/lint/test; **or this is the 2nd or 3rd fix attempt**. Repeated failure means the first root-cause diagnosis was wrong, which is exactly when a narrow re-look is worthless.
 
 Record the tier and its finding count in the ledger. Fix Tier 1/2 findings per Step 9's rules, then return to step 2.
@@ -75,29 +71,27 @@ Route in this order, first match wins:
 7. `reviewDecision == "CHANGES_REQUESTED"` -> **park unconditionally** (step 7). A human looked and objected; that is categorically different from nobody having looked yet, and it MUST NOT be bypassed even where `--admin` would succeed.
 8. Otherwise -> step 6.
 
-**6. Attempt the merge, then re-read.**
+**6. Attempt the merge, then re-read.** Intent: pr-merge. If the session's tool map lists it, use that command with `"$PR"`; it prints `merge_rc=<code>` and what `gh` said. Otherwise do this:
 
 ```bash
-playbook pr merge "$PR"
+gh pr merge "$PR" --auto
 ```
 
-No strategy flag: where a merge queue is required it sets the strategy, and passing one only adds a stderr warning. If the output of `playbook pr merge` says auto-merge is not allowed for this repository, fall back to a synchronous `gh pr merge "$PR" --squash` (checks are already green by step 2); that is a repo-settings difference, not a permissions block, and it is discovered by attempting, not by reading `.allow_auto_merge` first.
+No strategy flag: where a merge queue is required it sets the strategy, and passing one only adds a stderr warning. If the merge output says auto-merge is not allowed for this repository, fall back to a synchronous `gh pr merge "$PR" --squash` (checks are already green by step 2); that is a repo-settings difference, not a permissions block, and it is discovered by attempting, not by reading `.allow_auto_merge` first.
 
-Then poll to a terminal state, re-reading rather than believing `merge_rc`:
-
-```bash
-playbook pr land-wait "$PR" --timeout 540 --interval 15
-```
+Then poll to a terminal state, re-reading rather than believing the exit code. Intent: pr-land-wait. If the session's tool map lists it, use that command with `"$PR" --timeout 540 --interval 15`. Otherwise do this: every 15 seconds for up to 540 seconds, read `gh pr view "$PR" --json state,mergeStateStatus,reviewDecision,autoMergeRequest`. `LAND_VERDICT` is `MERGED` when the state is `MERGED`, `REVIEW_GATE` on `REVIEW_REQUIRED`, `CHANGES_REQUESTED` on that review, `RESTATE` when the merge state is `DIRTY` or `BEHIND`, and `TIMEOUT` when time runs out.
 
 `RESTATE` returns to step 5. `TIMEOUT` with everything green falls through to the admin escalation below; a merge queue can hold a PR for its full batching window, so a deadline shorter than that window would escalate needlessly.
 
 **Admin escalation (MUST be gated on green checks).** Only when `LAND_VERDICT` is `REVIEW_GATE` or `TIMEOUT`, `mergeable == "MERGEABLE"`, AND step 2 returned `CI_VERDICT=PASS` or `NONE`:
 
+Use the pr-merge tool with its admin option when the tool map lists it. Otherwise run:
+
 ```bash
-playbook pr merge "$PR" --admin
+gh pr merge "$PR" --admin --squash
 ```
 
-**`--admin` bypasses required status checks, not only reviews.** Never reach it from a failing or unfinished CI state: the 3-attempt fix cap has no admin escape hatch, and "give up on CI, merge it anyway" is never a valid outcome of this loop. Re-read state afterwards, as always. If the output of `playbook pr merge --admin` says the PR must be merged using the asynchronous merge REST API, the PR's base is another open PR's branch, which `land` guarantees cannot happen: report the topology invariant as violated and STOP rather than retrying. Any permission refusal goes to step 7 with the message recorded verbatim.
+**`--admin` bypasses required status checks, not only reviews.** Never reach it from a failing or unfinished CI state: the 3-attempt fix cap has no admin escape hatch, and "give up on CI, merge it anyway" is never a valid outcome of this loop. Re-read state afterwards, as always. If the output of the admin merge says the PR must be merged using the asynchronous merge REST API, the PR's base is another open PR's branch, which `land` guarantees cannot happen: report the topology invariant as violated and STOP rather than retrying. Any permission refusal goes to step 7 with the message recorded verbatim.
 
 **7. Park (a stop, not a wait).** A human approving and merging cannot happen inside one turn, so parking ends the run, the way **pause** does, but only because genuinely blocked. Record in the ledger:
 

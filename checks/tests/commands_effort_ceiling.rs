@@ -62,8 +62,13 @@ fn every_command_that_spawns_agents_reads_the_effort_ceiling_in_step_zero() {
             continue;
         }
         let step = step_zero(&text).unwrap_or_else(|| panic!("{name}: no Step 0 section"));
-        let call = format!("playbook run-context --command {name}");
-        assert!(step.contains(&call), "{name}: Step 0 must run `{call}`");
+        let old = format!("playbook run-context --command {name}");
+        assert!(
+            step.contains(&old)
+                || step.contains("Intent: run-mode")
+                || step.contains("references/run-context.md"),
+            "{name}: Step 0 must read the run mode (Intent: run-mode)"
+        );
         assert!(
             step.contains("delegating-subagents"),
             "{name}: Step 0 must point at the delegating-subagents skill"
@@ -128,10 +133,11 @@ fn every_command_that_spawns_agents_calls_route_and_names_the_gate() {
         }
         let step = step_zero(&text).unwrap_or_else(|| panic!("{name}: no Step 0 section"));
         assert!(
-            ROUTE_KINDS
-                .iter()
-                .any(|k| step.contains(&format!("playbook route {k} --json"))),
-            "{name}: Step 0 must run `playbook route <kind> --json` with a known kind"
+            step.contains("Intent: route-model")
+                || ROUTE_KINDS
+                    .iter()
+                    .any(|k| step.contains(&format!("playbook route {k} --json"))),
+            "{name}: Step 0 must name the route-model intent"
         );
         for word in [
             "routing.escalate",

@@ -8,21 +8,18 @@ effort: low
 
 # Session Start
 
-Pick up where the last session in this directory stopped. `/playbook:session-handoff` saves a handoff with `playbook handoff save`, and the SessionStart hook loads it on its own after `/clear`. Run this command when that automatic load did not appear, or to read the handoff again.
+Pick up where the last session in this directory stopped. `/playbook:session-handoff` saves a handoff, and when the session-start hook is installed it loads that handoff on its own after `/clear`. Run this command when no handoff appeared, or to read it again.
 
 ## Run this now
 
 Run every step immediately and do not ask for confirmation.
 
-1. Load the handoff. It prints the freshest one for this directory and never deletes it. Add `--all` when `$ARGUMENTS` has it.
+1. Load the handoff without deleting it. Intent: handoff-show. If the session's tool map (printed at session start) lists it, use that command, with `--all` when `$ARGUMENTS` has it. A handoff the hook already loaded still prints, labelled "already loaded by the last session start". Otherwise do this:
+   - Folder: `~/.config/playbook/repos/<owner>/<repo>/handoff/`, where `<owner>/<repo>` is `git remote get-url origin` with the scheme, any `user@`, the host and a trailing `.git` stripped. With no `origin` remote, use `~/.config/playbook/runtime/handoff/`.
+   - Slug: `printf '%s' "$PWD" | tr -c 'A-Za-z0-9' '-'`.
+   - Run `ls -t <folder>/<slug>-*.md <folder>/used/<slug>-*.md 2>/dev/null` and read the first file whose name after the slug is `-<epoch>-<pid>.md` (every such file with `--all`); a longer name belongs to a child or sibling directory. A file in `used/` was already loaded by a session start; say so. Skip a file older than 14 days.
 
-   ```bash
-   playbook handoff show
-   ```
-
-   A handoff the hook already loaded still prints, labelled "already loaded by the last session start".
-
-2. If it says `No handoff saved for this directory`, say so in one line and stop. When it lists handoffs saved for other directories, name the one that looks closest and tell the user how to load it: `cd` into that directory, or run `playbook handoff show --dir <path>`. Then run `playbook handoff status` and report the last `clear` row. If no `clear` row follows a `/clear`, Claude Code did not run the SessionStart hook.
+2. If nothing was found, say `No handoff saved for this directory` in one line and stop. When the folder holds handoffs for other directories, name the one that looks closest and tell the user to `cd` into that directory and run this command again.
 
 3. Orient in three to five lines: where we are, the decisions that still matter, and the next steps in order. Use only what the handoff says.
 

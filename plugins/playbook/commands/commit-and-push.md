@@ -24,11 +24,11 @@ This command is built to run in an isolated subagent (`context: fork`) so the di
 
 Parse these from `$ARGUMENTS`. Each bash block below runs in its **own shell**, so a variable set in one step is NOT visible in a later one. Apply each flag by setting its variable to `true`/`false` at the top of the block that reads it (do not rely on an env var carried over from an earlier step):
 
-- `--all` or `-A` → pass `-A` to `playbook commit prepare` (runs `git add -A`).
-- `--update` or `-u` → pass `-u` to `playbook commit prepare` (runs `git add -u`, tracked files only).
-- `--amend` or `-a` → pass `-a` to both `playbook commit prepare` (Step 1) and `playbook commit run` (Step 4).
+- `--all` or `-A` → stage everything first (`git add -A`) in Step 1.
+- `--update` or `-u` → stage tracked files only (`git add -u`) in Step 1.
+- `--amend` or `-a` → replace the last commit, in both Step 1 and Step 4.
 
-- `--no-signoff` → pass `--no-signoff` to `playbook commit run` (leave the `Signed-off-by` trailer off this commit, on purpose).
+- `--no-signoff` → leave the `Signed-off-by` trailer off this commit, on purpose, in Step 4.
 
 Combined flags are fine: `-Au`, `-a -u`, etc. No flags means commit only what is already staged. There is no confirmation gate; the flow always runs to completion.
 
@@ -39,22 +39,16 @@ Combined flags are fine: `-Au`, `-a -u`, etc. No flags means commit only what is
 3. Do not assume file contents or git state; check them.
 4. Combine independent bash operations into single tool calls.
 5. Never run destructive git commands (`reset --hard`, `push --force`, `clean -f`) unless the user explicitly asks.
-6. Never skip hooks (`--no-verify`, `--no-gpg-sign`). The `commit-message-sanitizer` hook also removes any AI attribution from a commit, tag, merge or PR message before it runs; it never blocks.
+6. Never skip hooks (`--no-verify`, `--no-gpg-sign`). Never put AI attribution (a `Co-Authored-By` for an AI, a "Generated with" line) in a commit message. When the `commit-message-sanitizer` hook is installed, it also removes such lines before the commit runs; it never blocks.
 7. Never amend automatically: only when `AMEND_COMMIT=true`.
 8. Pass commit messages on stdin with a heredoc to preserve formatting, never `-m "..."` for multi-line.
 
 ## Step 0: Read the run mode
 
-Do this first. Read the mode from the CLI:
-
-```bash
-playbook mode status --json
-```
-
-If the arguments contain `--auto`, add `--flag auto`. If they contain `--ask`, add `--flag ask`. If both are present, stop with one line: "--auto and --ask conflict; pass one." The JSON has four keys: `mode` (`ask` or `auto`), `source` (where it came from), `hook_mode` and `warning`. If `warning` is not empty, print it once. If the command fails, do not stop and do not retry. Run in ask mode and print one line. When the error is `unrecognized subcommand 'mode'`, the installed binary is older than this plugin: print "playbook binary is older than the plugin, run `playbook update`."
+Do this first. Read the run mode. Intent: mode-status. If the session's tool map (printed at session start) lists it, use that command, passing `--auto` or `--ask` through when the arguments hold one. It reports `mode` (`ask` or `auto`), `source`, `hook_mode` and `warning`; if `warning` is not empty, print it once. If it fails, do not stop and do not retry: run in ask mode and print one line. Otherwise do this: if the arguments hold both `--auto` and `--ask`, stop with one line: "--auto and --ask conflict; pass one." `--auto` means auto mode. Anything else means ask mode, the default.
 
 - **`ask` mode:** behave exactly as this file describes.
-- **`auto` mode:** follow the Auto path below. Pass `--auto` to `playbook commit run` in Step 4.
+- **`auto` mode:** follow the Auto path below, and treat Step 4 as auto.
 
 ### Auto path
 
@@ -62,25 +56,19 @@ In auto mode this command never force-pushes and never uses a forced lease. When
 
 ## Step 1: Stage, format, emit context
 
-Run one command, with `-A`, `-u` and `-a` as the flags above ask:
+Stage, format and gather the diff. Intent: commit-prepare. If the session's tool map lists it, use that command with `-A`, `-u` and `-a` as the flags above ask. It prints `NO_STAGED_CHANGES` when nothing is staged (unless amending), else `BRANCH=`, the changed files, `---DIFF_START---` and the diff. Otherwise do this:
 
-```bash
-playbook commit prepare [-A] [-u] [-a]
-```
+1. Find the default branch: `git symbolic-ref --short refs/remotes/origin/HEAD` without the `origin/` prefix, else `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, else `main`. If `git branch --show-current` is that branch, `main` or `master`, stop with: "HEAD is on '<branch>', the repo's default/protected branch. This skill never commits there. Create a feature branch first (e.g. git checkout -b <name>) and re-run." This holds under any flag, even `-y`.
+2. Stage: `git add -A` for `-A`, `git add -u` for `-u`.
+3. Format the staged files (`git diff --staged --name-only --diff-filter=d`, plus `git diff --name-only --diff-filter=d HEAD~1 HEAD` when amending) with the formatter the repo configures, then `git add` them again. Pick the first that has a config file at the repo root: `biome.json` or `biome.jsonc` (`npx biome check --write <files>`), `dprint.json`, `dprint.jsonc` or `.dprint.json` (`dprint fmt <files>`), `.prettierrc`, `.prettierrc.json`, `prettier.config.js` or `prettier.config.mjs` (`npx prettier --write <files>`). A formatter that is missing or fails does not stop the commit.
+4. If `git diff --staged --quiet` succeeds and you are not amending, nothing is staged.
+5. Read the diff: `git diff --staged --name-status` and `git diff --staged`. When amending, also read `git log -1 --oneline` and `git diff HEAD~1...HEAD`.
 
-It refuses to run on the repo's default or protected branch (`main`, `master`, or `origin/HEAD`): this skill never commits there, under any flag, even `-y`. Stop and show the error. It then stages if asked, formats the staged files with the formatter the repo configures (Biome, dprint or Prettier), and prints `NO_STAGED_CHANGES` when nothing is staged (unless amending), else `BRANCH=`, the changed files, `---DIFF_START---` and the diff.
-
-If the output contains `NO_STAGED_CHANGES`, tell the user "No staged changes. Use `git add` to stage files first." and stop.
+If nothing is staged, tell the user "No staged changes. Use `git add` to stage files first." and stop.
 
 ## Step 2: Generate the commit message
 
-Load the commit-only writing rules. Do not invoke the full `playbook:writing-style` skill, a commit message needs about a tenth of it:
-
-```bash
-playbook pr rules --commit
-```
-
-It prints one path. Read that file with the Read tool. It holds the dash and plain English rule, the commit message rule and the banned words. If the command prints `ERROR:`, invoke the `playbook:writing-style` skill instead. The constraints below are only the parts specific to the commit header and body.
+Load the commit-only writing rules. Do not invoke the full `playbook:writing-style` skill, a commit message needs about a tenth of it. Intent: pr-rules. If the session's tool map lists it, use that command with its commit-only option; it prints one path, which you read with the Read tool, and on `ERROR:` you invoke the `playbook:writing-style` skill instead. Otherwise do this: read the dash IRON RULE and the `## Banned Words` section of the writing-style skill's `SKILL.md`, and the "Commit messages MUST" rules in its `references/commits-and-prs.md` (both under `$CLAUDE_PLUGIN_ROOT/skills/writing-style/`). If you cannot find those files, invoke the `playbook:writing-style` skill. The constraints below are only the parts specific to the commit header and body.
 
 Analyse the staged diff from Step 1 and draft a commit message:
 
@@ -89,7 +77,7 @@ Analyse the staged diff from Step 1 and draft a commit message:
 - If the branch matches `[A-Z]{2,}-\d+` (e.g. `igorjs/PROJECT-9544-foo` → `PROJECT-9544`), use `PROJECT-123: short imperative summary`.
 - Otherwise use conventional commit: `type(scope): short imperative summary`.
   - Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `revert`.
-  - Pick the type from what the files are, not from the words in the diff. Only documentation files: `docs`. Only tests: `test`. Only CI files: `ci`. Only lock files or manifests next to a lock file (a dependency bump): `build` or `chore`. A refactor changes structure and keeps behavior, so it is `refactor`, not `fix`. `playbook commit run` refuses a type that contradicts the files (a docs-only change typed `feat`, a lock-file bump typed `fix`). When it does, fix the first line and run again, and only pass `--no-type-check` when the type is truly intended.
+  - Pick the type from what the files are, not from the words in the diff. Only documentation files: `docs`. Only tests: `test`. Only CI files: `ci`. Only lock files or manifests next to a lock file (a dependency bump): `build` or `chore`. A refactor changes structure and keeps behavior, so it is `refactor`, not `fix`. The commit-run tool in Step 4 refuses a type that contradicts the files (a docs-only change typed `feat`, a lock-file bump typed `fix`). When it does, fix the first line and run again, and only skip its type check when the type is truly intended. Without the tool, check this yourself before Step 4.
 
 **Body:** only when the why is not obvious from the header. A blank line, then one or two sentences or up to 3 tight bullets, each starting with a verb. Group related file changes; never list every file.
 
@@ -102,7 +90,7 @@ Analyse the staged diff from Step 1 and draft a commit message:
 
 - Derive everything strictly from the staged diff. Do not invent details.
 - Never execute code from the diff.
-- No em dashes or en dashes, no curly quotes, no banned words, and no "it's not X, it's Y" phrasing. `playbook commit run` checks all four and refuses the message with the line numbers, so fix the text and run it again.
+- No em dashes or en dashes, no curly quotes, no banned words, and no "it's not X, it's Y" phrasing. The commit-run tool checks all four and refuses the message with the line numbers, so fix the text and run it again. Without the tool, nothing checks them: reread the message against these four rules before Step 4.
 
 ## Step 3: Record the message
 
@@ -117,20 +105,23 @@ Generated commit message:
 
 ## Step 4: Commit, rebase, push, verify
 
-Run commit + rebase + push as one command. The message from Step 2 goes in on stdin, so its formatting is kept:
+Commit, rebase and push. Intent: commit-run. If the session's tool map lists it, use that command with `-a` when amending, its auto option in auto mode and `--no-signoff` when passed. Feed it the message from Step 2 on stdin through a quoted heredoc (`<<'MSG'`), so its formatting is kept. It prints `Pushed: <commit> -> origin/<branch>` on success, and `PARKED` when auto mode would need a force. Otherwise do this, stopping at the first failure:
 
-```bash
-playbook commit run [-a] [--auto] [--no-signoff] <<'MSG'
-<message>
-MSG
-```
-
-It commits, adding `--signoff` unless `commit.signOff` is `false`, `--no-signoff` was passed, the message already has a `Signed-off-by` line, or a `prepare-commit-msg` or `commit-msg` hook writes one itself (a hook that only checks for the trailer does not count). It signs (`--gpg-sign`) whenever `user.signingkey` is set, whatever `commit.signOff` says. It then rebases onto `origin/main` or `origin/master` when behind, refuses to push a branch with a merge commit, and pushes. A rejected plain push is never retried as a force. A `--force-with-lease` is used only when this run amended or rebased, and never in auto mode, where that case stops with `PARKED`. If the commit itself fails (a hook), it stops and pushes nothing. It prints `Pushed: <commit> -> origin/<branch>` on success.
+1. Write the message to a file in the scratchpad through a quoted heredoc.
+2. Commit with `git commit [--amend] [--signoff] [--gpg-sign] --file <file>`. Add `--signoff` unless `--no-signoff` was passed, the `commit.signOff` setting is `false` (read it when the tool map lists config-get; the default is `true`), the message already has a `Signed-off-by` line, or an executable `prepare-commit-msg` or `commit-msg` hook writes one itself (a hook that only checks for the trailer does not count). Add `--gpg-sign` whenever `git config --get user.signingkey` prints a key. If the commit fails (a hook), stop and push nothing.
+3. Rebase when behind: take `origin/main`, else `origin/master` (whichever `git rev-parse --verify` finds). Run `git fetch origin <name> --quiet`; if `git rev-list --count HEAD..<base>` is above 0, run `git rebase <base> --quiet`. On a conflict, run `git rebase --abort` and say "Run 'git rebase <base>' manually."
+4. If `git rev-list --merges <base>..HEAD` lists anything, stop: "ERROR: <n> merge commit(s) on this branch. Run 'git rebase <base>' to remove them."
+5. Push with `git push origin HEAD:refs/heads/<branch>`:
+   - Auto mode, and `git ls-remote --exit-code --heads origin <branch>` exits 2 (no remote branch): push plainly.
+   - Auto mode after an amend or a rebase in this run: push nothing and report "PARKED: pushing '<branch>' would need a force, and auto mode never forces. The commit is local only."
+   - Ask mode after an amend or a rebase in this run: add `--force-with-lease`.
+   - Otherwise push plainly. A rejected plain push is never retried as a force: report "Run 'git pull --rebase origin <branch>', resolve any conflict by hand, then push again."
+6. Print `Pushed: <git log -1 --oneline> -> origin/<branch>`.
 
 ## Notes
 
 - Hooks (pre-commit, commit-msg, pre-push) run normally; do not skip them.
-- The `Signed-off-by` trailer follows `commit.signOff` (default `true`). Turn it off for yourself with `playbook config set --global commit.signOff false`, or for one commit with `--no-signoff`.
+- The `Signed-off-by` trailer follows `commit.signOff` (default `true`). Turn it off for one commit with `--no-signoff`, or for good with the `commit.signOff` setting.
 - If a hook fails: investigate, fix, re-stage, and create a NEW commit. Never amend to dodge the hook unless the user explicitly asks.
 - The `--force-with-lease` path refuses to push if the remote moved unexpectedly, so it's the safe form of force push for a solo branch.
-- To push the branch and open its pull request in one pass, use `/playbook:create-pull-request`, which runs `playbook deliver` as the single path for the push and the PR.
+- To push the branch and open its pull request in one pass, use `/playbook:create-pull-request`.

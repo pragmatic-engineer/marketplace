@@ -12,13 +12,7 @@ Iterate through unresolved review-thread comments and PR-level comments on a pul
 
 ## Step 0: Read the run mode
 
-Do this first. Read the mode from the CLI:
-
-```bash
-playbook run-context --args "$ARGUMENTS"
-```
-
-The JSON has `mode`, `source`, `hook_mode` and `warning`. Read `playbook skill ref delegating-subagents run-context` and follow it for the warning, exit 2, any other failure, and an outdated binary.
+Do this first. Read the run mode. Intent: run-mode. If the session's tool map (printed at session start) lists it, use that command with this command's arguments, and follow the `run-context` reference of the `playbook:delegating-subagents` skill for its warning, exit 2 and failures. Otherwise do this: if `$ARGUMENTS` has both `--auto` and `--ask`, stop with one line: "--auto and --ask conflict; pass one." If it has `--auto`, the mode is `auto`. In every other case the mode is `ask`, the default.
 
 If the mode is `auto`, stop here. Print one line and nothing else: "/playbook:address-pr-comments needs a person to run it, because it replies on GitHub in your name and each reply needs your approval." Do not run any later step.
 
@@ -46,7 +40,7 @@ Forbidden internal monologue and forbidden in draft reply text:
 
 ## Discipline: writing the reply
 
-Invoke the `playbook:writing-style` skill before drafting any reply. It governs voice, contractions, banned words, banned openers, reply brevity (one sentence ideal, two max, a paragraph is never acceptable), and the GitHub-specific rules (no commit hashes in reply text, no markdown emphasis in inline comments, no em or en dashes). The GitHub-specific rules live in its references: read `github-review-comments`, `github-prohibited`, `examples` and `imperfections` (`playbook skill ref writing-style <name>` prints each path). Load them once at the start of Step 4 and apply it to every reply in the loop; do not re-derive these rules from memory.
+Invoke the `playbook:writing-style` skill before drafting any reply. It governs voice, contractions, banned words, banned openers, reply brevity (one sentence ideal, two max, a paragraph is never acceptable), and the GitHub-specific rules (no commit hashes in reply text, no markdown emphasis in inline comments, no em or en dashes). The GitHub-specific rules live in its references: read `github-review-comments`, `github-prohibited`, `examples` and `imperfections` (each is `references/<name>.md` in that skill's folder). Load them once at the start of Step 4 and apply it to every reply in the loop; do not re-derive these rules from memory.
 
 Shell-quoting gotcha for `gh api -f body=`: apostrophes in double quotes are literal (`"I don't"` is correct, NEVER escape to `"I don\'t"` which posts as `don'''t`). If the body contains complex quoting, write it to a temp file and use `-F body=@/tmp/reply.txt`.
 
@@ -73,17 +67,37 @@ Parse `$ARGUMENTS` token-by-token:
 
 ## Step 1: Resolve PR and capture context
 
-```bash
-playbook pr comments "$ARGUMENTS"
-```
+Resolve the PR and fetch its review threads and PR-level comments. Intent: pr-comments. If the session's tool map lists it, use that command with `"$ARGUMENTS"`. It parses the flags and the PR number, resolves the PR from the current branch when none is given, and prints `PR: owner/name#N`, `Head SHA:`, `Me:` and `Flags: bots=... dry-run=... auto-commit=...`. It exits 1 with `error: no PR for current branch; pass a PR number` when it cannot resolve a PR. It writes both sources to `/tmp/pr-comments-<PR>-threads.json` and `/tmp/pr-comments-<PR>-issues.json`. Otherwise do this:
 
-It parses the flags and the PR number, resolves the PR from the current branch when none is given, and prints `PR: owner/name#N`, `Head SHA:`, `Me:` and `Flags: bots=... dry-run=... auto-commit=...`. It also runs the Step 2 fetch. It exits 1 with `error: no PR for current branch; pass a PR number` when it cannot resolve a PR.
+1. `PR_NUMBER`: the number from the arguments, else `gh pr view --json number -q .number`. If neither gives one, stop with `error: no PR for current branch; pass a PR number`.
+2. `OWNER/NAME`: `gh repo view --json nameWithOwner -q .nameWithOwner`. `HEAD_SHA`: `gh pr view "$PR_NUMBER" --json headRefOid -q .headRefOid`. `ME`: `gh api /user -q .login`.
+3. Write the review threads to `/tmp/pr-comments-<PR>-threads.json`:
+
+   ```bash
+   gh api graphql -F owner="$OWNER" -F name="$NAME" -F pr="$PR_NUMBER" -f query='
+     query($owner: String!, $name: String!, $pr: Int!) {
+       repository(owner: $owner, name: $name) {
+         pullRequest(number: $pr) {
+           reviewThreads(first: 100) {
+             nodes {
+               id isResolved isOutdated path line originalLine
+               comments(first: 50) {
+                 nodes { id databaseId author { login } body url createdAt }
+               }
+             }
+           }
+         }
+       }
+     }' > "/tmp/pr-comments-$PR_NUMBER-threads.json"
+   ```
+
+4. Write the PR-level comments to `/tmp/pr-comments-<PR>-issues.json` with `gh api "/repos/$OWNER/$NAME/issues/$PR_NUMBER/comments" --paginate`.
 
 Capture `PR_NUMBER`, `OWNER`, `NAME`, `HEAD_SHA`, `ME`, and the three flag values. You need them for every later step.
 
 ## Step 2: Fetch unresolved review threads and PR-level comments
 
-Step 1's command already fetched both sources and wrote them to `/tmp/pr-comments-<PR>-threads.json` (inline review threads with a `path` and `line`, plus the GraphQL ids and the first comment's `databaseId` needed for REST replies) and `/tmp/pr-comments-<PR>-issues.json` (PR-level issue comments, no path or line).
+Step 1 already fetched both sources: `/tmp/pr-comments-<PR>-threads.json` holds the inline review threads with a `path` and `line`, plus the GraphQL ids and the first comment's `databaseId` needed for REST replies, and `/tmp/pr-comments-<PR>-issues.json` holds the PR-level issue comments, with no path or line.
 
 Now filter in Claude (not bash) so you can reason about each thread:
 
@@ -133,14 +147,15 @@ For each indexed item, do this loop:
    - **For Both, apply the fix half now and queue the reply text for Step 6.** The reply half of a **Both** action is NEVER posted here: only its content is decided now. Step 6 posts it after the commit, once the push has succeeded.
    - For **Fix**, or the fix half of **Both**: apply the approved diff with `Edit`. Read the changed lines back and print the applied hunk to the user immediately, before advancing to the next indexed item.
    - For **Reply only** (no fix): write the approved reply text to a file with `Write` (for example `/tmp/<repo>/address-pr-comments-<PR_NUMBER>-item-<N>.md`) and post it:
+     Intent: pr-reply. If the session's tool map lists it, use that command with the PR number, the file, and either the thread's first-comment `databaseId` or the PR-level option. It posts the file verbatim, refuses an empty body, an em or en dash and AI attribution, and prints `Posted: <url>` and the body. Otherwise do this: check the file yourself for those three problems, then post it from the file, which needs no shell quoting:
      ```bash
      # Inline review-thread reply (the databaseId of the thread's first comment)
-     playbook pr reply --pr "$PR_NUMBER" --thread "$DATABASE_ID" --body-file <that file>
+     gh api -X POST "/repos/$OWNER/$NAME/pulls/$PR_NUMBER/comments/$DATABASE_ID/replies" -F body=@<that file> -q .html_url
      # PR-level comment reply
-     playbook pr reply --pr "$PR_NUMBER" --issue --body-file <that file>
+     gh api -X POST "/repos/$OWNER/$NAME/issues/$PR_NUMBER/comments" -F body=@<that file> -q .html_url
      ```
-     It posts the file verbatim (no shell quoting to get wrong), refuses an empty body, an em or en dash and AI attribution, and prints `Posted: <url>` and the body. Print the posted body to the user before advancing to the next indexed item.
-   - If an edit does not apply or `playbook pr reply` exits 1, surface the error to the user plainly and mark the item `failed` in the tracked state below, never `fixed`/`replied`.
+     Print the posted body to the user before advancing to the next indexed item.
+   - If an edit does not apply or the post fails, surface the error to the user plainly and mark the item `failed` in the tracked state below, never `fixed`/`replied`.
 
 6. **Track state.** Keep a running markdown list, one row per indexed item, with status `fixed | replied | both-queued | failed | skipped`. This is the audit trail.
 
@@ -162,7 +177,7 @@ If approved (or `AUTO_COMMIT=true`):
 
 1. Invoke the `commit-and-push` skill with the `-A` flag and an extra hint that the commit message should reference the PR (e.g. "address review comments on #<PR_NUMBER>"). The skill handles staging, formatting, message generation, rebase, and push. Capture the resulting commit SHA from the skill's output.
 
-2. For each `both-queued` reply, write the reply body to a file and post it with `playbook pr reply --pr "$PR_NUMBER" --thread "$DATABASE_ID" --body-file <file>`, the same call Step 4 uses for an immediate reply. Print the posted body before moving to the next queued reply. On a failure, apply the SAME rule Step 4 sub-step 5 uses: surface it to the user plainly, mark the item `failed` (not `both-queued` anymore), and do not count it toward "posted P queued replies" below.
+2. For each `both-queued` reply, write the reply body to a file and post it as a thread reply, the same way Step 4 sub-step 5 posts an immediate reply. Print the posted body before moving to the next queued reply. On a failure, apply the SAME rule Step 4 sub-step 5 uses: surface it to the user plainly, mark the item `failed` (not `both-queued` anymore), and do not count it toward "posted P queued replies" below.
 
 3. Print a final summary:
    ```

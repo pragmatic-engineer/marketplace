@@ -447,10 +447,14 @@ fn every_command_file_has_a_row_in_the_table_and_the_reverse() {
     );
 }
 
-/// Step 0 reads the run mode with `playbook mode status` or, since it also
-/// resolves the effort ceiling, `playbook run-context`.
+/// Step 0 reads the run mode through the `run-mode` or `mode-status` intent,
+/// or points at the run-context reference that explains it.
 fn reads_mode(text: &str) -> bool {
-    text.contains("playbook mode status") || text.contains("playbook run-context")
+    text.contains("playbook mode status")
+        || text.contains("playbook run-context")
+        || text.contains("Intent: run-mode")
+        || text.contains("Intent: mode-status")
+        || text.contains("references/run-context.md")
 }
 
 #[test]
@@ -468,7 +472,7 @@ fn step0_section_reads_mode_status() {
         match step0 {
             None => failures.push(format!("{}: no `Step 0` section", spec.name)),
             Some(s) if !reads_mode(&file.text_of(&s)) => failures.push(format!(
-                "{}: `{}` never calls `playbook mode status` or `playbook run-context`",
+                "{}: `{}` never reads the run mode (Intent: run-mode)",
                 spec.name, s.title
             )),
             Some(_) => {}
@@ -1150,7 +1154,7 @@ fn fix_escalation_names_all_five_rules() {
 }
 
 #[test]
-fn fix_reads_both_thresholds_through_playbook_config_get() {
+fn fix_reads_both_thresholds_through_the_config_get_intent() {
     // Arrange
     let file = load("fix");
     let text = file.lines[file.body_start..].join("\n");
@@ -1158,13 +1162,13 @@ fn fix_reads_both_thresholds_through_playbook_config_get() {
     // Act
     let missing: Vec<&str> = ["fix.maxFiles", "fix.maxLines"]
         .into_iter()
-        .filter(|key| !text.contains(&format!("playbook config get {key}")))
+        .filter(|key| !(text.contains("Intent: config-get") && text.contains(*key)))
         .collect();
 
     // Assert
     assert!(
         missing.is_empty(),
-        "fix never runs `playbook config get` for {missing:?}"
+        "fix never reads the config-get intent for {missing:?}"
     );
 }
 
