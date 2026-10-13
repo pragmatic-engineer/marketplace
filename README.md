@@ -36,6 +36,10 @@ shell/check-marketplace.sh
 
 `shell/check-marketplace.sh` keeps installs keyless: a plugin source is either a path in this repository, or an https url or archive, and an archive carries a sha256.
 
+## The binary contract
+
+`intents.json` lists the tool intents the plugin relies on, named like the entries of `playbook tools map`. The `contract` workflow downloads the latest released playbook binary and compares its tool map with the list. A missing intent is a warning, and a failure only for an entry marked `required`. Run it by hand with `scripts/check-intents.sh [path-to-playbook]`.
+
 ## The hooks plugin pin
 
 `playbook-hooks` is versioned with the playbook binary. Its entry points at the release archive `playbook-hooks-plugin-<version>.zip` in `pragmatic-engineer/playbook` and pins its sha256. The `pin-hooks` workflow runs daily at 06:37 UTC and can be started by hand. If a newer playbook release carries the archive, it runs `shell/bump-marketplace.sh`, which downloads the archive, verifies its build provenance attestation and writes the URL and the sha256 of those exact bytes. The workflow commits the change to a `bump/hooks-v<version>` branch through the GitHub API, opens a pull request, approves the held checks run, waits for it to pass and squash merges. It uses only the built-in `GITHUB_TOKEN`. Don't edit the pin by hand.
