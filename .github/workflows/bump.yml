@@ -31,7 +31,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="$(gh release view --repo pragmatic-engineer/playbook --json tagName --jq .tagName)"
+          # Only plain vX.Y.Z tags are playbook releases. The repo also publishes
+          # telemetry-vX.Y.Z and code-vX.Y.Z, and GitHub's "latest" can be one of those.
+          tag="$(gh release list --repo pragmatic-engineer/playbook --limit 100 --json tagName,isDraft,isPrerelease \
+            --jq '[.[] | select(.isDraft == false and .isPrerelease == false) | .tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | first // empty')"
+          if [ -z "$tag" ]; then
+            echo "::error::no vX.Y.Z release found in pragmatic-engineer/playbook." >&2
+            exit 1
+          fi
           latest="${tag#v}"
           current="$(jq -r '.plugins[] | select(.name == "playbook") | .source.url' .claude-plugin/marketplace.json | sed -n 's#.*/download/v\([0-9][0-9.]*\)/.*#\1#p')"
           echo "latest=${latest}" >> "$GITHUB_OUTPUT"
