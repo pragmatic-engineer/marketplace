@@ -9,3 +9,12 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+  - package-ecosystem: cargo
+    directory: /checks
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore"
+    groups:
+      cargo:
+        patterns: ["*"]
