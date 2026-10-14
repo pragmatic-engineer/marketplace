@@ -1,7 +1,7 @@
 ---
 description: Use when a branch is ready to open as a pull request. Runs pre-flight checks and opens a draft PR with a conventional title.
 allowed-tools: Bash, Read, Skill
-argument-hint: "[--help] [--ready] [--base <branch>] [--ticket <ID>] [--dir <path>] [--auto] [--ask]"
+argument-hint: "[--help] [--ready] [--base <branch>] [--ticket <ID>] [--issue <N>] [--dir <path>] [--auto] [--ask]"
 context: fork
 agent: playbook:git
 ---
@@ -28,7 +28,8 @@ Read these from `$ARGUMENTS` once and remember them. `--base`, `--ticket`, and `
 
 - `--ready` → promote the PR to ready once `/playbook:finish-pull-request`'s self-review passes, instead of leaving it a draft. Does NOT change how the PR opens: that is decided only by `pr.draft`.
 - `--base <branch>` → override the base branch. Use it in Steps 1 and 4.
-- `--ticket <ID>` → force the ticket, skipping branch auto-detect (`none` omits the line). Use it in Step 1.
+- `--ticket <ID>` → force the ticket key, skipping auto-detect (`none` turns every ticket rule off). Use it in Steps 1 and 4.
+- `--issue <N>` → the GitHub issue this PR handles. Use it in Step 4.
 - `--dir <path>` → publish the branch checked out in this directory. A caller that names a directory or branch outside the shell's current directory (for example `/playbook:implement` publishing a Segment that lives in a git worktree) passes it here. Use it in Steps 1 and 4 (pass it to a tool, or `cd` into it at the top of every plain shell block). A forked shell can reset to the main checkout between calls, so without `--dir` the command acts on whatever repo the shell is in.
 - `--auto` or `--ask` → set the run mode for this run. Step 0 reads it.
 - `--help` → print the argument-hint line from this file's frontmatter and stop.
@@ -83,58 +84,63 @@ Otherwise do this, and print the same lines yourself:
    - size: `OVER` above 1000 lines (it needs explicit justification in the PR body), `SOFT` above 500, else `OK`.
    - tests: `NONE` when no file in `git diff --name-only origin/<base>...HEAD` matches `.test.`, `.spec.`, `_test.`, `test_`, a `test/` or `tests/` or `__tests__/` folder, and no added Rust line holds `#[test]` or `#[cfg(test)]`; else `OK` with the count.
 7. Make a state folder with `mktemp -d` and print it as `state_dir=`. Write `git diff origin/<base>...HEAD` to `<state_dir>/pr-diff.txt` and print it as `diff_file=`. Print `git diff --stat origin/<base>...HEAD` and `git log origin/<base>..HEAD --format='%h %s'`.
-8. Ticket: `--ticket` as given (it may be `none`), else the first match of `[A-Z][A-Z0-9]+-[0-9]+` in the branch name, else empty. Print it as `ticket=`.
+8. Ticket: `--ticket` as given (it may be `none`), else the plan or Segment ticket, else the first match of `[A-Z][A-Z0-9]+-[0-9]+` in the branch name, else a key in the scope of the commit subjects, else empty. Never invent a key. Print it as `ticket=`.
 
 **Copy every `VERDICT` line verbatim into the readiness block.** Do not recompute or paraphrase them. Every `VERDICT` is non-blocking: print them and move on without pausing.
 
 Read the file named by `diff_file=` with the Read tool. This is the source of truth for the title and body. If it is large, read it in chunks; do not skip it.
 
-If `ticket=` holds a real ID (not empty, not `none`), the body's first line is `Ticket: <ID>`. If empty or `none`, omit the line without asking.
+If `ticket=` holds a real key (not empty, not `none`), the key goes on the very first line of the body and in the scope of the title (Steps 2 and 3). If empty or `none`, no ticket rule applies: omit it without asking.
 
 ## Step 2: Generate the title (conventional commits)
 
 Derive the title from the diff and commit log gathered in Step 1.
 
-- Format: `type(scope): summary`, e.g. `feat(auth): add SSO retry logic`. Scope is optional.
+- Format: `type(scope): summary`. With a ticket key, the key is the scope: `feat(PROJ-123): add retry to the sync job`. Without one, use a module name as the scope, e.g. `feat(auth): add SSO retry logic`, or no scope.
+- In a stacked PR set, every PR title and every commit carries the key. Squash merge turns the title into the commit message, so the title follows the same format.
 - Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, `chore`. Pick the type from what the files in the diff are, not from words in it: only docs files is `docs`, only tests is `test`, only CI files is `ci`, a dependency bump (lock files, or manifests next to a lock file) is `build` or `chore`, and a change that restructures code and keeps behavior is `refactor`, not `fix`.
 - Imperative mood ("add", not "added" or "adds"), no trailing period.
-- **Length: 72 characters maximum**, counting the entire line including the `type(scope):` prefix. This is a hard limit, not a target. If the draft exceeds it, tighten the summary (drop the scope, cut filler, shorten wording) until it fits; never open a PR with a title over 72 characters. Step 4 re-checks the length and refuses a longer title before it pushes anything.
+- **Length: 72 characters maximum**, counting the entire line including the `type(scope):` prefix. This is a hard limit, not a target. If the draft exceeds it, tighten the summary (cut filler, shorten wording; drop the scope only when it is a module name, never when it holds the ticket key) until it fits; never open a PR with a title over 72 characters. Step 4 re-checks the length and refuses a longer title before it pushes anything.
 - The summary states the **effect** of the change, not a list of files.
-- The ticket goes in the body, not the title.
 
 ## Step 3: Generate the body (MANDATORY template)
 
-Fill this template exactly. Keep the section order. Follow `playbook:writing-style` throughout: active voice, simple English, no banned words or phrases, no em or en dashes, no "This PR..." filler.
+The body is short. Fill this template exactly, in this order, and drop every optional part that has nothing to say. Follow `playbook:writing-style`: plain words, active voice, no filler openers, no em or en dashes.
 
 ```markdown
-Ticket: PROJECT-1234
+PROJ-123
 
 ## Summary
 
-<Why are we doing this? 1-2 sentences, active voice. Focus on the why, not the what. The bug being fixed, the requirement, the motivation. Do not echo the title.>
-
-## What Changed
-
-- <Bullets in plain terms. Describe concepts and context, not files. Give the reviewer what they need to follow the change. 3-8 bullets, grouped logically.>
+<What changed and why, in at most 3 short sentences. No file lists, no restating the title.>
 
 ## Notes for reviewers
 
-- <Optional. Oddities, trade-offs, intentional tech debt, anything that needs human context. Drop this whole section if there's nothing to add.>
+- <Optional. Risks, decisions, or how to verify. Drop the whole section when empty.>
 
 ## Related work
 
-- <Optional. Cross-references to other PRs or tickets. Drop this whole section if there's nothing to add.>
+- <Optional. Links to the other PRs of a stack. Drop the whole section when empty.>
 ```
 
-Rules for filling it:
+Rules:
 
-1. **`Ticket:` line**: include only when Step 1 printed a real `ticket=` ID; otherwise delete the line so the body starts at `## Summary`.
-2. **Summary**: the why, not the what. One or two sentences. If the title is `fix(cache): stop stale reads after invalidation`, the Summary explains why stale reads mattered, not that you changed the cache.
-3. **What Changed**: every bullet maps to something real in the diff. Group by concept, don't enumerate files. Use the same terms the code uses (if it's a "handler", don't call it a "controller").
-4. **Notes for reviewers**: drop the heading entirely if empty. Don't leave "N/A".
-5. **Related work**: drop the heading entirely if empty.
-6. No trailing "generated by" footer. No test-count noise. If CI covers it, the reviewer sees CI.
-7. The body must carry no AI attribution (no `Claude-Session:` trailer, no `claude.ai/code/session` link, no co-author line naming Claude or Anthropic, no "generated with" footer) and no em or en dashes outside code. Step 4 checks the title, the body, and every commit message, and refuses to push if it finds any.
+1. **First line:** the ticket key (shape `[A-Z][A-Z0-9]+-[0-9]+`) when Step 1 printed one, as a link when the base URL is known from config or memory. No key means no line, and the body starts at `## Summary`.
+2. **GitHub issue:** when `--issue`, the plan or the branch names an issue, end the Summary with `Closes #N` if the PR fully resolves it, or `Refs #N` if it only advances it.
+3. **Summary:** the only required section. It says what changed and why in at most 3 short sentences.
+4. **Length:** aim for about 500 characters and stay under 1200. A reviewer reads the diff, so do not describe it line by line.
+5. **Leave out:** a "What Changed" or "Test plan" section, checklists of obvious steps, file lists, emoji headers, hedging, marketing words, an "N/A" section, and any "generated by" footer.
+6. The body carries no AI attribution and no em or en dashes outside code. Step 4 checks the title, the body and every commit message, and refuses to push if it finds a problem.
+
+A correct body:
+
+```markdown
+PROJ-123
+
+## Summary
+
+The sync job now retries up to three times when the queue is busy. Before, one busy reply dropped the whole run. Closes #41
+```
 
 ## Step 4: Push and create
 
@@ -148,10 +154,10 @@ cat > "<state_dir>/pr-body.md" <<'PRBODY_EOF'
 PRBODY_EOF
 ```
 
-Then push and open the PR. Intent: pr-create. If the session's tool map lists it, use that command with the title, `--body-file "<state_dir>/pr-body.md"`, `--base <base from Step 1>` and `--dir` when given. It reads `pr.draft` itself, so do not add a draft flag. It checks the title length and the attribution and dash rules, pushes, confirms the remote carries your HEAD, opens the PR (or reuses the open one) and corrects its base. If it refuses with a list of problems, nothing was pushed or created: fix the title or body (or amend the named commit) and run it again. Otherwise do this, stopping at the first failure:
+Then push and open the PR. Intent: pr-create. If the session's tool map lists it, use that command with the title, `--body-file "<state_dir>/pr-body.md"`, `--base <base from Step 1>`, `--ticket` and `--issue` when known, and `--dir` when given. It reads `pr.draft` itself, so do not add a draft flag. It checks the body against the template and length cap, the issue clause, the ticket on the first line, the ticket in the title and commit scopes (a stacked PR is refused without it), the title length and the attribution and dash rules, then pushes, confirms the remote carries your HEAD, opens the PR (or reuses the open one) and corrects its base. If it refuses with a list of problems, nothing was pushed or created: fix the title or body (or amend the named commit) and run it again. Otherwise do this, stopping at the first failure:
 
 1. Refuse when anything is staged (`git diff --cached --quiet` fails): report the staged files and stop, and do not rewrite the title or body.
-2. Check by hand: the title is at most 72 characters; the title and body have no em or en dash outside code; the title, the body and every message in `git log origin/<base>..HEAD` carry no AI attribution. If any fails, fix the title or body (or say which commit to amend) and check again. This check is advisory: no tool backs it.
+2. Check by hand: the title is at most 72 characters; the body follows Step 3 and is under 1200 characters; the key (when known) is on the first body line and in the scope of the title and every commit; a handled issue has its `Closes #N` or `Refs #N`; the title and body have no em or en dash outside code; the title, the body and every message in `git log origin/<base>..HEAD` carry no AI attribution. If any fails, fix the title or body (or say which commit to amend) and check again. This check is advisory: no tool backs it.
 3. Read `pr.draft`. Intent: config-get. If the tool map lists it, use that command. Otherwise use the default, `true`.
 4. If `git rev-list --count HEAD..origin/<base>` is above 0, run `git rebase --autostash origin/<base>`. On a conflict, run `git rebase --abort`, list the files, and stop.
 5. Push with `git push -u origin HEAD:refs/heads/<branch>`. After the rebase in item 4 the push needs a force: first check that `git merge-base --is-ancestor <remote sha> <HEAD before the rebase>` passes, where the remote sha is `git rev-parse origin/<branch>` after a `git fetch origin <branch>`, and then push with `--force-with-lease=refs/heads/<branch>:<remote sha>`. If the check fails, stop and say the remote branch has commits this branch lacks. A rejected push stops the run before any PR exists.

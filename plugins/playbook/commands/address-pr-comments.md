@@ -169,13 +169,13 @@ Staged changes:
   <git diff --stat output>
 ```
 
-Run `git diff --stat` to show what changed locally. If `AUTO_COMMIT=false`, ask the user `Proceed with commit-and-push? [Y/n]`. If the user says no, exit with the changes left in the working tree (do not stage, do not commit). Print the list of queued replies they'll need to post manually.
+Run `git diff --stat` to show what changed locally. The commit follows `/playbook:commit-and-push`: when the branch has a ticket key, the scope carries it (`fix(PROJ-123): ...`), and on a stacked PR that is required. If `AUTO_COMMIT=false`, ask the user `Proceed with commit-and-push? [Y/n]`. If the user says no, exit with the changes left in the working tree (do not stage, do not commit). Print the list of queued replies they'll need to post manually.
 
 ## Step 6: Commit, push, post queued replies
 
 If approved (or `AUTO_COMMIT=true`):
 
-1. Invoke the `commit-and-push` skill with the `-A` flag and an extra hint that the commit message should reference the PR (e.g. "address review comments on #<PR_NUMBER>"). The skill handles staging, formatting, message generation, rebase, and push. Capture the resulting commit SHA from the skill's output.
+1. Invoke the `commit-and-push` skill with the `-A` flag and an extra hint that the commit message should reference the PR (e.g. "address review comments on #<PR_NUMBER>") and the ticket key read from the scope of the PR title, if it has one. The skill handles staging, formatting, message generation, rebase, and push. Capture the resulting commit SHA from the skill's output.
 
 2. For each `both-queued` reply, write the reply body to a file and post it as a thread reply, the same way Step 4 sub-step 5 posts an immediate reply. Print the posted body before moving to the next queued reply. On a failure, apply the SAME rule Step 4 sub-step 5 uses: surface it to the user plainly, mark the item `failed` (not `both-queued` anymore), and do not count it toward "posted P queued replies" below.
 
