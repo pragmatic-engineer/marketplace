@@ -21,7 +21,7 @@ Read before posting a review comment, a reply to review feedback, or an issue or
 - When suggesting a fix, use plain language ("consider changing X to Y", "change X to Y").
 - **No fix in mind, say so.** State the problem and stop. A guessed-at fix you don't actually believe in is worse than naming a real gap and leaving the fix to the author.
 - **A code snippet is a last resort**, only when the problem or the fix is too complex to explain in a sentence or two. Prefer pseudocode over real, runnable code: sketch the idea in a few lines, not a full implementation. A developer is attached to their own code, and a ready-made solution reads as presumptuous; pseudocode hands over the idea and leaves the implementation to them. Reserve real code for GitHub's own ```suggestion``` block, a literal, applicable diff for a mechanical fix, never for illustrating an approach.
-- For nitpicks and minor suggestions, soften the tone.
+- For nitpicks and minor suggestions, keep it short and plain. The label already says it is optional.
 - Start each review comment with a conventional comment label, no bold formatting: `blocking:`, `issue:`, `suggestion:`, `nitpick:`, `question:`. A human typing fast doesn't wrap labels in `**`. Use `blocking:` for a finding that must be fixed before merge; reserve `issue:` for a real problem that is not merge-blocking. `suggestion:`, `nitpick:`, and `question:` are non-blocking by definition, so they never take the `blocking:` label.
 - **Nitpicks must be lightweight.** If the reason is obvious from the code, state the finding and stop. Don't trace the history of why the code exists.
 - **Don't state implications the reader can draw themselves.** "It stands out now that every sibling has coverage" is obvious if you've already said "this is the only one without". Stop after the fact.
@@ -39,7 +39,7 @@ Reply drafts must read like a human typed them quickly in a code review thread.
 - **Acknowledgements must be terse when used.** One or two neutral words: "Ok.", "Fair point.", "My mistake.", "Will do.", "Noted." Vary across a batch.
 - **No trailing hedges.** Don't end with "but good to be aware of", "worth keeping in mind", "something to watch for", "we can revisit if needed." Say the thing and stop.
 - **Keep one register.** Reply in the same plain, direct English whatever the reviewer's tone.
-- When explaining a design decision, state the reason in one clause. "They're distinct in Postgres so this is intentional." not a paragraph about trade-offs.
+- When explaining a design decision, state the reason in one clause. "They're distinct in Postgres. This is intentional." not a paragraph about trade-offs.
 - When disagreeing, explain the reasoning respectfully. Still one sentence.
 - **No slang.** Plain words only.
 

@@ -7,7 +7,7 @@ description: "One plain, simple-English standard for prose a human reads: chat, 
 
 One register for everything Claude writes: simple English, plain and direct. It covers chat, PR titles and bodies, commit messages, review comments, tickets, Confluence pages, Slack messages, code comments, docs and ADRs. There is no warmer or more casual variant for other readers.
 
-These rules are MUST-level unless marked SHOULD. They do not apply to code, filenames, CLI commands, UI labels or technical terms inside prose. "Navigate to Settings" is a UI instruction, not business jargon, and "never use `--no-verify`" is a technical instruction, not an absolute claim.
+These rules are MUST-level unless marked SHOULD. They do not apply to code, filenames, CLI commands, UI labels or technical terms inside prose. "Navigate to Settings" is a UI instruction, and "never use `--no-verify`" is a technical instruction. Both keep their wording.
 
 > **IRON RULE:** MUST NEVER use em dashes or en dashes in any output, and MUST write in simple, plain English (common words, short sentences). This applies to every file, comment, commit message, and generated text. Use commas, colons, or periods instead of dashes. Both dash types are strong AI tells; fancy vocabulary and long sentences are too. Use straight quotes (`"`, `'`), never curly/smart quotes (`"`, `"`, `'`, `'`); same ASCII-only reasoning as the dash rule.
 
@@ -43,9 +43,9 @@ MUST apply these principles to anything written for review: the reviewer is the 
 - Use active voice. "This breaks the import" not "the import is broken by this."
 - Use data and examples to support claims.
 - Address the reader as "you" and write as "I" where a first person fits ("I changed", "Done"). Code review comments are the exception: see `github-review-comments`.
-- Be kind and respectful. Frame feedback constructively: "this might cause X, consider Y" beats "this is wrong, do Y."
+- Be kind and respectful. Name the problem and the fix without blame: "this breaks X. Change Y."
 - Keep one word for one thing. Contractions are fine and not required.
-- No slang, no jokes, no deliberate typos, no personal asides. Plain and direct is the whole register.
+- No slang, no jokes, no deliberate typos, no personal asides.
 
 ## Prohibitions
 
@@ -86,7 +86,7 @@ very, really, literally, actually, certainly, probably, basically, delve, embark
 
 A second, distinct category: phrases that perform depth or authority instead of stating a fact ("smart-ass" tone, not flowery vocabulary). Never appear in generated content: "load-bearing", "worth stating plainly", "here's the honest truth", "the real tension", "carry the argument", "at its core", "what really matters", "the deeper issue". State the fact; don't announce that you're about to state it.
 
-Also banned: the phrase lists in `phrases` and the patterns in `structures`. `playbook prose check` flags them.
+Also banned: the phrase lists in `phrases` and the patterns in `structures`. Where the `playbook` binary offers a prose check, it flags them.
 
 ---
 
@@ -116,7 +116,7 @@ Below 35 out of 50: revise, then re-score. Stop after the second pass. More pass
 
 ## Shape by artifact
 
-The words are the same everywhere. Only the structure changes.
+Every artifact uses the same words and rules. The list gives the structure of each.
 
 - **Commit message:** a conventional title under 73 characters, imperative, one change. A body only when the why is not obvious. Details in `commits-and-prs`.
 - **PR description:** the team template, section order unchanged. One line of what and why first. Details in `commits-and-prs`.

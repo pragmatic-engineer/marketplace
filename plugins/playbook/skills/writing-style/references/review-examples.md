@@ -32,7 +32,7 @@ For general before and after rewrites see `examples`. These show review comments
 
 **Review finding** (good: the problem, then the failure):
 
-> issue: this loads every row before filtering, so a large tenant OOMs the process. Push the filter into the query.
+> issue: this loads every row before filtering. A large tenant runs the process out of memory. Push the filter into the query.
 
 **Review finding, blocking label** (bad: argues priority the label already carries):
 
@@ -40,7 +40,7 @@ For general before and after rewrites see `examples`. These show review comments
 
 **Review finding, blocking label** (good: the label already says urgent, the sentence only needs the defect):
 
-> blocking: the retry loop has no max attempt count, so a stuck dependency retries forever.
+> blocking: the retry loop has no max attempt count. A stuck dependency retries forever.
 
 **Review finding, complex fix** (bad: hands over a full working implementation):
 
@@ -56,7 +56,7 @@ For general before and after rewrites see `examples`. These show review comments
 
 **Review finding, complex fix** (good: states the problem, sketches the idea in pseudocode, leaves the implementation to the author):
 
-> blocking: this retries without a backoff, so a flaky dependency gets hammered. Something like: retry N times, sleep `baseDelay * 2^attempt` between each, give up after the last one.
+> blocking: this retries without a backoff. A flaky dependency gets too many calls. Something like: retry N times, sleep `baseDelay * 2^attempt` between each, give up after the last one.
 
 **More good examples:**
 

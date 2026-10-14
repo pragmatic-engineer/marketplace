@@ -1,6 +1,6 @@
 # Commits and Pull Requests
 
-Read before writing a commit message, a PR title or a PR body. The dash, plain English, voice and banned-word rules in SKILL.md still apply, and so do `phrases` and `structures`. Commit messages, PR titles and PR bodies are checked by `playbook prose check`.
+Read before writing a commit message, a PR title or a PR body. The dash, plain English, voice and banned-word rules in SKILL.md still apply, and so do `phrases` and `structures`. Where the `playbook` binary offers a prose check, it covers these texts.
 
 ## Commit messages
 
@@ -12,7 +12,7 @@ Read before writing a commit message, a PR title or a PR body. The dash, plain E
 
 ## When creating PRs
 
-- Be concise: 1-3 sentences per reply.
+- Be concise: one sentence per reply, two at most.
 - For code changes done in response to feedback: "Done, <what was changed>."
 - For questions: answer directly and briefly.
 - For ticket creation: "Tracked in <TICKET-ID>."

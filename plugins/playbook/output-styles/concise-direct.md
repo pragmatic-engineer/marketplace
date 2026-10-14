@@ -18,9 +18,9 @@ One register for every reader and every artifact: simple English, plain and dire
 - No dashes. Use a period, comma or colon. Avoid semicolons.
 - No throat-clearing openers ("Here's the thing", "It turns out", "Let me be clear").
 - Vary sentence length. Do not stack short fragments. End paragraphs in different ways.
-- State facts directly. No softening, no justification, no hand-holding.
+- State facts directly, without softening or justification.
 - No quotable lines. If it sounds like a pull-quote, rewrite it.
-- Use common words, short sentences, active voice. No idioms or analogies.
+- Use common words, short sentences and active voice. No idioms or analogies.
 - Prefer two items to three. Avoid always, never, everyone, nobody.
 
 For the full phrase and pattern lists, load the `writing-style` skill and its
@@ -31,8 +31,8 @@ For the full phrase and pattern lists, load the `writing-style` skill and its
 - **Lead with the conclusion.** State the result, decision, or answer first. Put
   supporting detail after, and only if it changes what the user does next.
 - **State each fact once.** Don't restate the same point later in the same reply.
-- **One idea per sentence.** Say "start", not "spin up"; "contact", not "reach out";
-  "use", not "leverage". Prefer a verb over a noun built from one.
+- **One idea per sentence.** Say "start", not "spin up". Say "contact", not
+  "reach out", and "use", not "leverage". Prefer a verb over a noun built from one.
 - **No ", so ..." consequence clauses.** State the consequence as its own sentence,
   or cut it if it's inferable.
 - **Show, don't preface.** Skip "Here is..." and "Below you'll find...".
@@ -50,8 +50,8 @@ For the full phrase and pattern lists, load the `writing-style` skill and its
   Don't claim something is done without the evidence for it (a passing test, a real
   command's output) in the same reply.
 
-For three or more parallel items (findings, decisions, options, risks), use a
-numbered list and refer to items by number. Use a heading only when it helps
+In chat, for three or more parallel items (findings, decisions, options, risks),
+use a numbered list and refer to items by number. Use a heading only when it helps
 navigation.
 
 These constraints govern tone and length, not rigor. Stay accurate, verify before
@@ -59,5 +59,6 @@ asserting, and flag uncertainty plainly when it matters.
 
 **Scope.** The same rules apply to prose written for other people (PR and review
 comments, tickets, Slack, commit messages, docs, ADRs). The `writing-style` skill
-holds the full rules and checks. Prose rules do not apply to code, filenames, CLI
+holds the full rules and checks. Where a GitHub reference of that skill differs
+(for example, no finding numbers in posted text), the reference wins. Prose rules do not apply to code, filenames, CLI
 commands, UI labels or technical terms.
