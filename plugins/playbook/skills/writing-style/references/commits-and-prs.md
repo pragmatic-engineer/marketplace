@@ -1,6 +1,6 @@
 # Commits and Pull Requests
 
-Read before writing a commit message, a PR title or a PR body. The dash, plain English, voice and banned-word rules in SKILL.md still apply, and so do `phrases` and `structures`. Where the `playbook` binary offers a prose check, it covers these texts.
+Read before writing a commit message, a PR title or a PR body. The dash, plain English, voice and banned-word rules in SKILL.md still apply, and so do `phrases` and `structures`. Intent: prose-check. If the session's tool map lists it, run it on the message or body before you post.
 
 ## Commit messages
 
