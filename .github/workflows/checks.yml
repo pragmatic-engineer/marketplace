@@ -31,7 +31,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check the marketplace invariants
+      - name: Check the marketplace listing
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: shell/check-marketplace.sh
 
       - name: Lint the shell scripts
