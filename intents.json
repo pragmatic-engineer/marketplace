@@ -144,6 +144,10 @@
     "required": false
   },
   {
+    "intent": "prose-check",
+    "required": false
+  },
+  {
     "intent": "review-checks",
     "required": false
   },
