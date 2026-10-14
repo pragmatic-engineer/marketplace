@@ -32,7 +32,7 @@ while [ "$i" -lt "$n" ]; do
   if [ "$stype" != "git-subdir" ]; then
     bad "$name source must be git-subdir (got ${stype:-none})"; continue
   fi
-  if ! [[ "$url" =~ ^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)\.git$ ]]; then
+  if [[ "$url" == *"/./"* || "$url" == *"/../"* ]] || ! [[ "$url" =~ ^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)\.git$ ]]; then
     bad "$name url must be an https github .git url (got $url)"; continue
   fi
   repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
@@ -45,12 +45,18 @@ while [ "$i" -lt "$n" ]; do
   fi
   echo "PASS $name source is git-subdir over https: $repo $path"
   [ "${OFFLINE:-0}" = 1 ] && continue
+  if ! command -v gh >/dev/null 2>&1; then
+    bad "$name cannot be looked up: gh is not installed (set OFFLINE=1 to skip)"; continue
+  fi
+  errf=$(mktemp)
   found=$(gh api -H "Accept: application/vnd.github.raw" \
-    "repos/$repo/contents/$path/.claude-plugin/plugin.json" 2>/dev/null | jq -r '.name // empty' 2>/dev/null)
+    "repos/$repo/contents/$path/.claude-plugin/plugin.json" 2>"$errf" | jq -r '.name // empty' 2>/dev/null)
+  err=$(tr '\n' ' ' <"$errf")
+  rm -f "$errf"
   if [ "$found" = "$name" ]; then
     echo "PASS $name resolves: $repo/$path has a manifest with this name"
   else
-    bad "$name does not resolve: $repo/$path/.claude-plugin/plugin.json has name '${found:-none}'"
+    bad "$name does not resolve: $repo/$path/.claude-plugin/plugin.json has name '${found:-none}' ${err:+(gh said: $err)}"
   fi
 done
 exit "$fail"
