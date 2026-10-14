@@ -169,7 +169,7 @@ Staged changes:
   <git diff --stat output>
 ```
 
-Run `git diff --stat` to show what changed locally. If `AUTO_COMMIT=false`, ask the user `Proceed with commit-and-push? [Y/n]`. If the user says no, exit with the changes left in the working tree (do not stage, do not commit). Print the list of queued replies they'll need to post manually.
+Run `git diff --stat` to show what changed locally. The commit follows `/playbook:commit-and-push`: when the branch has a ticket key, the scope carries it (`fix(PROJ-123): ...`), and on a stacked PR that is required. If `AUTO_COMMIT=false`, ask the user `Proceed with commit-and-push? [Y/n]`. If the user says no, exit with the changes left in the working tree (do not stage, do not commit). Print the list of queued replies they'll need to post manually.
 
 ## Step 6: Commit, push, post queued replies
 
