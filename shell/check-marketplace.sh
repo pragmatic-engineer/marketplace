@@ -2,46 +2,61 @@
 # SPDX-FileCopyrightText: 2026 Igor Santos
 # SPDX-License-Identifier: Apache-2.0
 #
-# check-marketplace.sh: pin the keyless-install invariant. Every plugin source
-# MUST be a url or archive source over https so users without SSH keys can
-# install. A github source clones via SSH and breaks keyless installs. An
-# archive source MUST also carry a 64 hex character sha256. A relative path
-# source (a plugin that lives in this repo) is allowed and must exist here.
+# check-marketplace.sh: check the marketplace listing.
+# Every plugin source must be a git-subdir source over https, so installs need
+# no SSH key. It must set no ref and no version, so the entry follows the
+# default branch and the plugin's own version decides when users get an update.
+# The path must be relative and the manifest at that path on the default
+# branch must carry the same plugin name. Set OFFLINE=1 to skip the lookup.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MKT="$ROOT/.claude-plugin/marketplace.json"
 fail=0
+bad() { echo "FAIL $*"; fail=1; }
 jq empty "$MKT" 2>/dev/null || { echo "FAIL: marketplace.json is not valid JSON"; exit 1; }
-[ "$(jq -r '.name' "$MKT")" = "pragmatic-engineer" ] && echo "PASS name is pragmatic-engineer" || { echo "FAIL name"; fail=1; }
+if [ "$(jq -r '.name' "$MKT")" = "pragmatic-engineer" ]; then
+  echo "PASS name is pragmatic-engineer"
+else
+  bad "name must be pragmatic-engineer"
+fi
 n=$(jq '.plugins | length' "$MKT")
+[ "$n" -ge 1 ] || bad "the marketplace lists no plugin"
 i=0
 while [ "$i" -lt "$n" ]; do
-  name=$(jq -r ".plugins[$i].name" "$MKT")
-  if [ "$(jq -r ".plugins[$i].source | type" "$MKT")" = "string" ]; then
-    rel=$(jq -r ".plugins[$i].source" "$MKT")
-    case "$rel" in
-      ./*) ;;
-      *) echo "FAIL $name relative source must start with ./ (got $rel)"; fail=1; i=$((i+1)); continue ;;
-    esac
-    if [ -f "$ROOT/$rel/.claude-plugin/plugin.json" ]; then
-      echo "PASS $name source is a relative path with a manifest: $rel"
-    else
-      echo "FAIL $name relative source $rel has no .claude-plugin/plugin.json"; fail=1
-    fi
-    i=$((i+1)); continue
+  p=".plugins[$i]"
+  name=$(jq -r "$p.name" "$MKT")
+  i=$((i + 1))
+  stype=$(jq -r "$p.source.source // empty" "$MKT")
+  url=$(jq -r "$p.source.url // empty" "$MKT")
+  path=$(jq -r "$p.source.path // empty" "$MKT")
+  if [ "$stype" != "git-subdir" ]; then
+    bad "$name source must be git-subdir (got ${stype:-none})"; continue
   fi
-  stype=$(jq -r ".plugins[$i].source.source" "$MKT")
-  surl=$(jq -r ".plugins[$i].source.url" "$MKT")
-  ssha=$(jq -r ".plugins[$i].source.sha256 // empty" "$MKT")
-  if ! printf '%s' "$surl" | grep -q '^https://'; then
-    echo "FAIL $name source must be https (got $stype / $surl)"; fail=1
-  elif [ "$stype" = "url" ]; then
-    echo "PASS $name source is url+https (keyless): $surl"
-  elif [ "$stype" = "archive" ] && printf '%s' "$ssha" | grep -Eq '^[0-9a-f]{64}$'; then
-    echo "PASS $name source is archive+https+sha256 (keyless): $surl"
+  if [[ "$url" == *"/./"* || "$url" == *"/../"* ]] || ! [[ "$url" =~ ^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)\.git$ ]]; then
+    bad "$name url must be an https github .git url (got $url)"; continue
+  fi
+  repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+  if ! [[ "$path" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ ]] || [[ "/$path/" == *"/../"* ]]; then
+    bad "$name path must be a relative path without .. (got ${path:-none})"; continue
+  fi
+  if [ "$(jq "$p.source | has(\"ref\") or has(\"sha\")" "$MKT")" = true ] ||
+     [ "$(jq "$p | has(\"version\")" "$MKT")" = true ]; then
+    bad "$name must not set ref, sha or version"; continue
+  fi
+  echo "PASS $name source is git-subdir over https: $repo $path"
+  [ "${OFFLINE:-0}" = 1 ] && continue
+  if ! command -v gh >/dev/null 2>&1; then
+    bad "$name cannot be looked up: gh is not installed (set OFFLINE=1 to skip)"; continue
+  fi
+  errf=$(mktemp)
+  found=$(gh api -H "Accept: application/vnd.github.raw" \
+    "repos/$repo/contents/$path/.claude-plugin/plugin.json" 2>"$errf" | jq -r '.name // empty' 2>/dev/null)
+  err=$(tr '\n' ' ' <"$errf")
+  rm -f "$errf"
+  if [ "$found" = "$name" ]; then
+    echo "PASS $name resolves: $repo/$path has a manifest with this name"
   else
-    echo "FAIL $name source must be url, or archive with a sha256 (got $stype / $surl / ${ssha:-no sha256})"; fail=1
+    bad "$name does not resolve: $repo/$path/.claude-plugin/plugin.json has name '${found:-none}' ${err:+(gh said: $err)}"
   fi
-  i=$((i+1))
 done
 exit "$fail"

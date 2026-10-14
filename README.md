@@ -1,53 +1,33 @@
-# skills
+# marketplace
 
-The Claude Code side of [playbook](https://github.com/pragmatic-engineer/playbook): the `playbook` plugin (skills, slash commands and subagents) and the `pragmatic-engineer` plugin marketplace that serves it.
+The `pragmatic-engineer` plugin marketplace for Claude Code. It lists one plugin, `playbook`.
 
-The plugin works on its own. The `playbook` binary and its hooks live in the playbook repository and ship as the second plugin, `playbook-hooks`.
+The plugin itself lives in [pragmatic-engineer/playbook](https://github.com/pragmatic-engineer/playbook) under `plugins/playbook`, next to the `playbook` binary. This repository holds only the listing, this README and the checks on the listing.
 
 ## Install
 
 ```sh
 claude plugin marketplace add pragmatic-engineer/skills
 claude plugin install playbook@pragmatic-engineer
-claude plugin install playbook-hooks@pragmatic-engineer
 ```
 
-Claude Code v2.1.224 or later is recommended. The second install line is optional, and it appears once a playbook release carries the hooks archive. The full install guide, including the binary and the `install.sh` script, is in the [playbook repository](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/00-install.md).
+Claude Code v2.1.224 or later is recommended. The full install guide, including the binary and the `install.sh` script, is in the [playbook repository](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/00-install.md).
 
-## Layout
+## How the listing works
 
-| Path | What it holds |
-|---|---|
-| `plugins/playbook/skills/` | Skills, one directory each |
-| `plugins/playbook/commands/` | The `/playbook:*` slash commands |
-| `plugins/playbook/agents/` | Subagent definitions |
-| `plugins/playbook/output-styles/` | Output styles |
-| `plugins/playbook/.claude-plugin/plugin.json` | The plugin manifest (name `playbook`) |
-| `.claude-plugin/marketplace.json` | The marketplace listing both plugins |
-| `docs/` | Authoring guides for skills, commands and agents, the two command guides, and the policy table |
-| `checks/` | A small Rust crate that tests the prose and structure of the plugin |
-| `shell/` | Scripts that guard and update the marketplace file |
+The `playbook` entry in `.claude-plugin/marketplace.json` is a `git-subdir` source: the url `https://github.com/pragmatic-engineer/playbook.git` and the path `plugins/playbook`. It sets no `ref` and no `version`. So the entry follows the default branch of the playbook repository, and Claude Code updates the plugin when the `version` in the plugin's own `plugin.json` changes. A change to the plugin needs no change here.
 
 ## Checks
 
 ```sh
-cd checks && cargo test --locked
 shell/check-marketplace.sh
 ```
 
-`shell/check-marketplace.sh` keeps installs keyless: a plugin source is either a path in this repository, or an https url or archive, and an archive carries a sha256.
-
-## The binary contract
-
-`intents.json` lists the tool intents the plugin relies on, named like the entries of `playbook tools map`. The `contract` workflow downloads the latest released playbook binary and compares its tool map with the list. A missing intent is a warning, and a failure only for an entry marked `required`. Run it by hand with `scripts/check-intents.sh [path-to-playbook]`.
-
-## The hooks plugin pin
-
-`playbook-hooks` is versioned with the playbook binary. Its entry points at the release archive `playbook-hooks-plugin-<version>.zip` in `pragmatic-engineer/playbook` and pins its sha256. The `pin-hooks` workflow runs daily at 06:37 UTC and can be started by hand. If a newer playbook release carries the archive, it runs `shell/bump-marketplace.sh`, which downloads the archive, verifies its build provenance attestation and writes the URL and the sha256 of those exact bytes. The workflow commits the change to a `bump/hooks-v<version>` branch through the GitHub API, opens a pull request, approves the held checks run, waits for it to pass and squash merges. It uses only the built-in `GITHUB_TOKEN`. Don't edit the pin by hand.
+The script checks that every source is a `git-subdir` source over https with a safe relative path, that it sets no `ref`, `sha` or `version`, and that the manifest at that path on the default branch carries the same plugin name. Set `OFFLINE=1` to skip the lookup.
 
 ## History
 
-The plugin files carry their history from the playbook repository. Commit hashes before the import differ from the ones in playbook because the history was rewritten to keep only these paths.
+Before the plugin moved into the playbook repository, it lived here. Its history stays readable in this repository, up to the release `playbook` 0.27.2.
 
 ## License
 
