@@ -86,7 +86,7 @@ very, really, literally, actually, certainly, probably, basically, delve, embark
 
 A second, distinct category: phrases that perform depth or authority instead of stating a fact ("smart-ass" tone, not flowery vocabulary). Never appear in generated content: "load-bearing", "worth stating plainly", "here's the honest truth", "the real tension", "carry the argument", "at its core", "what really matters", "the deeper issue". State the fact; don't announce that you're about to state it.
 
-Also banned: the phrase lists in `phrases` and the patterns in `structures`. Intent: prose-check. If the session's tool map lists it, run it on the draft before you post and fix what it flags.
+Also banned: the phrase lists in `phrases` and the patterns in `structures`. Intent: prose-check. If the session's tool map (printed at session start) lists it, run it on the draft before you post and fix what it flags.
 
 ---
 
