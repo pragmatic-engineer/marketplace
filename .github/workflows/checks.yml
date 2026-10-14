@@ -45,11 +45,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    env:
-      CARGO_INCREMENTAL: "0"
-      CARGO_PROFILE_DEV_DEBUG: "0"
-      CARGO_PROFILE_TEST_DEBUG: "0"
+    timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         # Linux-only action; it self-skips on macOS with a confusing warning.
@@ -58,17 +54,15 @@ jobs:
           egress-policy: block
           allowed-endpoints: >
             api.github.com:443
-            crates.io:443
             github.com:443
-            index.crates.io:443
-            objects.githubusercontent.com:443
-            static.crates.io:443
-            static.rust-lang.org:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Run the prose and structure checks
-        working-directory: checks
-        run: cargo test --locked
+      # Runs the shape checks on both systems. The lookup on the remote runs in
+      # the validate job.
+      - name: Check the marketplace listing shape
+        env:
+          OFFLINE: "1"
+        run: shell/check-marketplace.sh
