@@ -100,7 +100,7 @@ Derive the title from the diff and commit log gathered in Step 1.
 - In a stacked PR set, every PR title and every commit carries the key. Squash merge turns the title into the commit message, so the title follows the same format.
 - Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, `chore`. Pick the type from what the files in the diff are, not from words in it: only docs files is `docs`, only tests is `test`, only CI files is `ci`, a dependency bump (lock files, or manifests next to a lock file) is `build` or `chore`, and a change that restructures code and keeps behavior is `refactor`, not `fix`.
 - Imperative mood ("add", not "added" or "adds"), no trailing period.
-- **Length: 72 characters maximum**, counting the entire line including the `type(scope):` prefix. This is a hard limit, not a target. If the draft exceeds it, tighten the summary (drop the scope, cut filler, shorten wording) until it fits; never open a PR with a title over 72 characters. Step 4 re-checks the length and refuses a longer title before it pushes anything.
+- **Length: 72 characters maximum**, counting the entire line including the `type(scope):` prefix. This is a hard limit, not a target. If the draft exceeds it, tighten the summary (cut filler, shorten wording; drop the scope only when it is a module name, never when it holds the ticket key) until it fits; never open a PR with a title over 72 characters. Step 4 re-checks the length and refuses a longer title before it pushes anything.
 - The summary states the **effect** of the change, not a list of files.
 
 ## Step 3: Generate the body (MANDATORY template)
