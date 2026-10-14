@@ -7,7 +7,7 @@ The plugin itself lives in [pragmatic-engineer/playbook](https://github.com/prag
 ## Install
 
 ```sh
-claude plugin marketplace add pragmatic-engineer/skills
+claude plugin marketplace add pragmatic-engineer/marketplace
 claude plugin install playbook@pragmatic-engineer
 ```
 
