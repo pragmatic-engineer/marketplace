@@ -57,9 +57,9 @@ In auto mode, `/playbook:finish-pull-request` skips the self-review. When `/play
 
 **Then load the skill rules.** This step needs four things: `playbook:writing-style`'s voice/banned-words/dash rules, its "When creating PRs" guidance (`references/commits-and-prs.md`), its "Prohibited GitHub Content" rules (`references/github-prohibited.md`; the PR title and body are posted to GitHub, so these apply), and `playbook:engineering-standards`' PR readiness criteria and size limits (used in Step 2). Reading each full skill file to get a subset that small is most of Step 0's own cost, so extract only those sections. Intent: pr-rules. If the session's tool map lists it, use that command. It checks each extracted file for a marker string, so a renamed heading fails loudly instead of silently pulling in everything through the end of the file. On success it prints `Skill sections extracted and verified:` and four paths; read all four with the Read tool now. On failure it prints `ERROR: ...`. Otherwise do this: under `$CLAUDE_PLUGIN_ROOT/skills/`, read `writing-style/SKILL.md` up to its `## Loading the references` heading, `writing-style/references/commits-and-prs.md` from `## Pull requests` to the end of the file, all of `writing-style/references/github-prohibited.md`, and the `engineering-standards/SKILL.md` text from `### Readiness` up to `### Review Comments`.
 
-Together they carry the same rules Step 0 has always needed: voice, banned words, the dash rule, "When creating PRs" guidance, the Prohibited GitHub Content rules, and the PR readiness/size limits enforced in Step 2. The `imperfections` and `github-review-comments` references of writing-style are deliberately not extracted: they govern review comments and replies, and `imperfections` injects casual typos into them, so none of it applies to a PR title or body. If any extraction fails or a file cannot be found, invoke the full skill via the Skill tool for that one file rather than proceeding without its rules.
+Together they carry the same rules Step 0 has always needed: voice, banned words, the dash rule, "When creating PRs" guidance, the Prohibited GitHub Content rules, and the PR readiness/size limits enforced in Step 2. The `github-review-comments` and `review-examples` references of writing-style are deliberately not extracted: they govern review comments and replies, so they do not apply to a PR title or body. Also read the `phrases` and `structures` references (`references/<name>.md` in the writing-style skill's folder) and apply them to the title and body. If any extraction fails or a file cannot be found, invoke the full skill via the Skill tool for that one file rather than proceeding without its rules.
 
-The PR title and body are read by another engineer, so they use the humane `playbook:writing-style` register (warm, contractions, active voice), NOT the terse operator voice. Where they conflict, `playbook:writing-style` wins for anything posted to GitHub.
+The PR title and body are read by another engineer, so they follow `playbook:writing-style`: simple English, plain and direct, the same register as chat.
 
 ## Step 1: Prepare (version check, pre-flight, diff, ticket)
 
@@ -104,7 +104,7 @@ Derive the title from the diff and commit log gathered in Step 1.
 
 ## Step 3: Generate the body (MANDATORY template)
 
-Fill this template exactly. Keep the section order. Follow `playbook:writing-style` throughout: active voice, contractions, no banned words, no em or en dashes, no "This PR..." filler.
+Fill this template exactly. Keep the section order. Follow `playbook:writing-style` throughout: active voice, simple English, no banned words or phrases, no em or en dashes, no "This PR..." filler.
 
 ```markdown
 Ticket: PROJECT-1234

@@ -161,9 +161,23 @@ fn writing_style_keeps_the_loading_heading_and_every_reference() {
             .any(|l| l.starts_with("## Loading the references")),
         "src/pr/rules.rs ends the core slice at this heading"
     );
+    // `playbook pr rules` cuts on these markers; a rename breaks it at run time.
+    for marker in [
+        "> **IRON RULE:** MUST NEVER use em dashes",
+        "## Banned Words",
+    ] {
+        assert!(skill.contains(marker), "src/pr/rules.rs cuts on `{marker}`");
+    }
+    let commits = read_skill("writing-style/references/commits-and-prs.md");
+    assert!(commits.contains("- Commit messages MUST"));
+    assert!(commits.contains("## Pull requests"));
+    let prohibited = read_skill("writing-style/references/github-prohibited.md");
+    assert!(prohibited.contains("# Prohibited GitHub"));
     for name in [
         "examples",
-        "imperfections",
+        "phrases",
+        "structures",
+        "review-examples",
         "shell-quoting",
         "commits-and-prs",
         "github-review-comments",

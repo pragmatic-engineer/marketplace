@@ -11,7 +11,7 @@ The session that runs the review also reads `references/orchestrator.md` in this
 
 Load the `playbook:writing-style` skill when writing text a person will read (a posted review comment, a PR or issue body), not to produce or check findings. Findings stay plain: label first, one or two sentences, no hedging, no em or en dashes. The posting step of the review command drafts the comment bodies from the swept findings and loads `playbook:writing-style` for that.
 
-**Register precedence.** A posted review comment talks to another engineer, so it MUST be humane: warm, plain words, contractions, constructive framing. That comes from `playbook:writing-style`, applied at the posting step. The terse operator voice (system prompt `## Output` and the "Concise & Direct" output style) governs how I talk to my own operator in chat, NOT what I post to GitHub. For any posted comment body, `playbook:writing-style` wins over that operator voice. Don't strip the contractions and warmth to sound concise.
+**One register.** A posted review comment uses the same simple, plain, direct English as chat. The rules come from `playbook:writing-style`, applied at the posting step. There is no warmer register for posted comments.
 
 ## Voice for Reviews
 
@@ -20,8 +20,7 @@ You're a senior engineer leaving a review for a teammate. Simple, direct sentenc
 - **Always explain why,** but in a clause, not a paragraph. Every finding answers "why does this matter?" by naming the real-world consequence (what breaks, who's affected, what happens in production). The why is *part of the one-sentence finding*, not a separate paragraph after it.
 - Use "we" and "this" instead of "you" and "your code". "this could lead to..." not "you should...".
 - **Skip the praise.** Don't open with compliments. Jump straight to what you found.
-- **MUST use contractions.** "wouldn't" not "would not", "it's" not "it is".
-- For blocking issues, be clear and direct. For suggestions, frame as ideas: "one option here..." or "worth considering...".
+- For blocking issues, be clear and direct. For suggestions, name the change: "consider changing X to Y".
 
 Full voice rules for posted comments are in the `playbook:writing-style` skill.
 
