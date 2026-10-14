@@ -163,7 +163,9 @@ fn writing_style_keeps_the_loading_heading_and_every_reference() {
     );
     for name in [
         "examples",
-        "imperfections",
+        "phrases",
+        "structures",
+        "review-examples",
         "shell-quoting",
         "commits-and-prs",
         "github-review-comments",

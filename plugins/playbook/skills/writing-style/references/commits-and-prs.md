@@ -1,10 +1,10 @@
 # Commits and Pull Requests
 
-Read before writing a commit message, a PR title or a PR body. The dash, plain English, voice and banned-word rules in SKILL.md still apply.
+Read before writing a commit message, a PR title or a PR body. The dash, plain English, voice and banned-word rules in SKILL.md still apply, and so do `phrases` and `structures`. Commit messages, PR titles and PR bodies are checked by `playbook prose check`.
 
 ## Commit messages
 
-- Commit messages MUST use a conventional imperative subject under ~50 chars, one change per commit. Add a body only when the why isn't obvious; a sentence or two, or tight bullets.
+- Commit messages MUST use a conventional imperative subject under 73 chars (`type(scope): what`), one change per commit. Add a body only when the why isn't obvious; a sentence or two, or tight bullets.
 
 ## Pull requests
 

@@ -78,7 +78,7 @@ Findings are plain: a label, `file:line`, the exact evidence, a short failure sc
 - **Drop intermediate-state padding.** "X is blank" beats "ships a blank X to the CSV".
 - **No hedging.** Ban: "may actually be", "I'd lean toward", "that said", "worth noting", "it's worth mentioning", "one could argue".
 - **No meta-justification.** "since X is a foot-gun" is reviewer-reasoning, not actionable info.
-- **Casual register.** Fragments OK. Lowercase verbs fine.
+- **Plain register.** Full short sentences. The same simple English as everywhere else.
 - **No em dashes or en dashes.** Use commas, colons, or periods. Hard rule, also enforced in the system prompt.
 
 ## Execution rules
@@ -164,7 +164,7 @@ If `SELF_MODE` is true (explicit `--self` or `--no-post`), or nothing is postabl
 
 ### Draft the comments (not in `SELF_MODE`, and only when something is postable)
 
-Now that the sweep is done and something can be posted, load `playbook:writing-style`. Draft one comment body for every swept finding that is not `Report-only`, from its label, problem, consequence and fix, applying that skill's GitHub rules. Then read its `github-review-comments`, `github-prohibited`, `examples` and `imperfections` references (each is `references/<name>.md` in the `writing-style` skill's folder). Comment bodies are read by another engineer, so they use the humane register (warm, contractions, constructive), NOT the terse operator voice from the "Concise & Direct" output style or system prompt `## Output`. Where those would conflict, `playbook:writing-style` wins for anything posted to GitHub. A body starts with the bare plain-text label, never bold, and carries no `file:line` prefix: GitHub anchors it. It MAY hold a ```suggestion``` block when the fix is mechanical.
+Now that the sweep is done and something can be posted, load `playbook:writing-style`. Draft one comment body for every swept finding that is not `Report-only`, from its label, problem, consequence and fix, applying that skill's GitHub rules. Then read its `github-review-comments`, `github-prohibited`, `review-examples`, `phrases` and `structures` references (each is `references/<name>.md` in the `writing-style` skill's folder). Comment bodies follow `playbook:writing-style`: the same simple, plain, direct English as chat. A body starts with the bare plain-text label, never bold, and carries no `file:line` prefix: GitHub anchors it. It MAY hold a ```suggestion``` block when the fix is mechanical.
 
 Relay the swept report with each draft shown under its finding as a `Draft:` block. Each draft is the final text: label, voice, no dashes, GitHub rules, all applied. Nothing is rewritten between this preview and the post, so what the user reads is exactly what posts. If the user asks for a change to a draft, redraft it with `playbook:writing-style` and show the new preview before posting.
 
