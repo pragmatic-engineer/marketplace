@@ -15,7 +15,11 @@ Claude Code v2.1.224 or later is recommended. The full install guide, including 
 
 ## How the listing works
 
-The `playbook` entry in `.claude-plugin/marketplace.json` is a `git-subdir` source: the url `https://github.com/pragmatic-engineer/playbook.git` and the path `plugins/playbook`. It sets no `ref` and no `version`. So the entry follows the default branch of the playbook repository, and Claude Code updates the plugin when the `version` in the plugin's own `plugin.json` changes. A change to the plugin needs no change here.
+The `playbook` entry in `.claude-plugin/marketplace.json` is a `git-subdir` source: the url `https://github.com/pragmatic-engineer/playbook.git` and the path `plugins/playbook`. After the first release from the playbook release workflow, its `ref` pins a playbook release tag `vX.Y.Z`, and `metadata.version` carries the same version. Until then the entry follows the default branch. The binary and the plugin share one version line, so a pinned plugin always matches a released binary.
+
+The playbook release workflow moves the pin. After it publishes and verifies `vX.Y.Z`, it opens a `release/vX.Y.Z` pull request here from the `igorjs[bot]` app and turns on auto-merge. When that pull request merges, the `release` workflow tags the merge commit `vX.Y.Z` and publishes a release with the notes `playbook vA -> vB`. It acts only on a merged pull request from the app on a `release/v*` branch. It mints an app token from the organization secrets `BOT_APP_CLIENT_ID` and `BOT_APP_PRIVATE_KEY`, since the tag ruleset lets only the app create `v` tags. Without those secrets it stops with a notice, and the playbook release workflow tags and releases through the API instead.
+
+To roll back, a maintainer moves the `ref` and `metadata.version` back to the previous release in a pull request. The playbook release doc has the steps.
 
 ## Checks
 
@@ -23,7 +27,7 @@ The `playbook` entry in `.claude-plugin/marketplace.json` is a `git-subdir` sour
 shell/check-marketplace.sh
 ```
 
-The script checks that every source is a `git-subdir` source over https with a safe relative path, that it sets no `ref`, `sha` or `version`, and that the manifest at that path on the default branch carries the same plugin name. Set `OFFLINE=1` to skip the lookup.
+The script checks that every source is a `git-subdir` source over https with a safe relative path, that it sets no `sha` or `version`, and that a `ref`, when set, is a release tag `vX.Y.Z`. It checks that the manifest at that path, at the `ref` or else on the default branch, carries the same plugin name, and the tag's version when a `ref` is set. `metadata.version`, when set, must be `MAJOR.MINOR.PATCH` and match the `playbook` ref. Set `OFFLINE=1` to skip the lookup.
 
 ## History
 

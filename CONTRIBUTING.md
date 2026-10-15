@@ -25,4 +25,4 @@ shell/check-marketplace.sh
 
 ## Releases
 
-The marketplace has no releases. Users get a plugin update when the `version` in the plugin's `plugin.json` changes in the playbook repository. Do not add a `ref` or a `version` to the entry.
+The playbook release workflow pins the `playbook` entry to each release through a `release/vX.Y.Z` pull request, and the `release` workflow here tags and releases `vX.Y.Z` when it merges. The README explains both. Do not move the `ref` or `metadata.version` by hand, except to roll back a release, and do not add a `sha` or an entry `version`. The app key behind `BOT_APP_CLIENT_ID` and `BOT_APP_PRIVATE_KEY` is an organization secret, and an organization admin rotates it.
