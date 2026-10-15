@@ -7,11 +7,13 @@
 # no SSH key. Its ref, when set, is a release tag vX.Y.Z, which the playbook
 # release workflow sets. It sets no sha and no version. The path is relative,
 # and the manifest there, at the ref or on the default branch, carries the same
-# plugin name, and the tag's version when a ref is set. metadata.version, when
-# set, is MAJOR.MINOR.PATCH. Set OFFLINE=1 to skip the lookup.
+# plugin name, and the tag's version when a ref is set. metadata.version is
+# MAJOR.MINOR.PATCH, and it and the playbook ref are set together and match.
+# Set OFFLINE=1 to skip the lookup. MARKETPLACE_JSON checks another file, which
+# the tests use.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MKT="$ROOT/.claude-plugin/marketplace.json"
+MKT="${MARKETPLACE_JSON:-$ROOT/.claude-plugin/marketplace.json}"
 fail=0
 bad() { echo "FAIL $*"; fail=1; }
 jq empty "$MKT" 2>/dev/null || { echo "FAIL: marketplace.json is not valid JSON"; exit 1; }
@@ -53,8 +55,8 @@ while [ "$i" -lt "$n" ]; do
      ! [[ "$ref" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     bad "$name ref must be a release tag vX.Y.Z (got ${ref:-none})"; continue
   fi
-  if [ "$name" = playbook ] && [ -n "$ref" ] && [ -n "$mversion" ] && [ "$ref" != "v$mversion" ]; then
-    bad "metadata.version $mversion does not match the playbook ref $ref"
+  if [ "$name" = playbook ] && { [ -n "$ref" ] || [ -n "$mversion" ]; } && [ "$ref" != "v$mversion" ]; then
+    bad "the playbook ref (${ref:-none}) and metadata.version (${mversion:-none}) must be set together and match"
   fi
   echo "PASS $name source is git-subdir over https: $repo $path${ref:+ at $ref}"
   [ "${OFFLINE:-0}" = 1 ] && continue

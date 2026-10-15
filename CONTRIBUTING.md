@@ -14,6 +14,7 @@ This repository holds the `pragmatic-engineer` marketplace listing. The `playboo
 
 ```sh
 shell/check-marketplace.sh
+shell/check-marketplace.test.sh
 ```
 
 ## Pull requests

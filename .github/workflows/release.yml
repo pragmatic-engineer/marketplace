@@ -16,10 +16,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: release
-  cancel-in-progress: false
-
 jobs:
   tag:
     # Only a merged pull request from the app, on a release branch of this
@@ -31,6 +27,11 @@ jobs:
       && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # On the job, so only release runs queue here and a closed pull request
+    # of another kind cannot cancel a pending one.
+    concurrency:
+      group: release
+      cancel-in-progress: false
     steps:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
@@ -95,6 +96,28 @@ jobs:
             exit 1
           fi
           before="$(git show HEAD^:.claude-plugin/marketplace.json | jq -r "$pin")"
+
+          # The tag covers the pin and nothing else, even when someone pushed
+          # to the app's branch before the merge.
+          changed="$(git diff --name-only HEAD^ HEAD)"
+          if [ "$changed" != .claude-plugin/marketplace.json ]; then
+            echo "::error::#${PR} changes more than .claude-plugin/marketplace.json: ${changed//$'\n'/ }. Nothing was changed." >&2
+            exit 1
+          fi
+          strip='del(.metadata.version) | if .metadata == {} then del(.metadata) else . end
+            | (.plugins[] | select(.name == "playbook") | .source) |= del(.ref)'
+          if [ "$(git show HEAD^:.claude-plugin/marketplace.json | jq -S "$strip")" != "$(jq -S "$strip" .claude-plugin/marketplace.json)" ]; then
+            echo "::error::#${PR} changes more than the playbook ref and metadata.version. Nothing was changed." >&2
+            exit 1
+          fi
+
+          # The merge commit must be on main, so the tag never lands on a
+          # commit outside its history.
+          status="$(gh api "repos/${REPO}/compare/${SHA}...main" --jq .status)"
+          if [ "$status" != identical ] && [ "$status" != ahead ]; then
+            echo "::error::${SHA} is not on main (compare says ${status}). Nothing was changed." >&2
+            exit 1
+          fi
 
           # The tag. One that exists must point at the merge commit, and an
           # annotated tag is followed to its commit.

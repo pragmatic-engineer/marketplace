@@ -19,7 +19,7 @@ The `playbook` entry in `.claude-plugin/marketplace.json` is a `git-subdir` sour
 
 The playbook release workflow moves the pin. After it publishes and verifies `vX.Y.Z`, it opens a `release/vX.Y.Z` pull request here from the `igorjs[bot]` app and turns on auto-merge. When that pull request merges, the `release` workflow tags the merge commit `vX.Y.Z` and publishes a release with the notes `playbook vA -> vB`. It acts only on a merged pull request from the app on a `release/v*` branch. It mints an app token from the organization secrets `BOT_APP_CLIENT_ID` and `BOT_APP_PRIVATE_KEY`, since the tag ruleset lets only the app create `v` tags. Without those secrets it stops with a notice, and the playbook release workflow tags and releases through the API instead.
 
-To roll back, a maintainer moves the `ref` and `metadata.version` back to the previous release in a pull request. The playbook release doc has the steps.
+To roll back the plugin, open a pull request that sets the `ref` back to the previous release tag `vA.B.C` and `metadata.version` to `A.B.C`, and run `shell/check-marketplace.sh` before you push. The tag and release of the bad version stay as they are.
 
 ## Checks
 
