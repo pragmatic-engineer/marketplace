@@ -39,6 +39,9 @@ jobs:
       - name: Lint the shell scripts
         run: shellcheck --severity=warning shell/*.sh
 
+      - name: Test the listing check
+        run: shell/check-marketplace.test.sh
+
   checks:
     strategy:
       fail-fast: false

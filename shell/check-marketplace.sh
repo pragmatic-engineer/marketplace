@@ -4,13 +4,16 @@
 #
 # check-marketplace.sh: check the marketplace listing.
 # Every plugin source must be a git-subdir source over https, so installs need
-# no SSH key. It must set no ref and no version, so the entry follows the
-# default branch and the plugin's own version decides when users get an update.
-# The path must be relative and the manifest at that path on the default
-# branch must carry the same plugin name. Set OFFLINE=1 to skip the lookup.
+# no SSH key. Its ref, when set, is a release tag vX.Y.Z, which the playbook
+# release workflow sets. It sets no sha and no version. The path is relative,
+# and the manifest there, at the ref or on the default branch, carries the same
+# plugin name, and the tag's version when a ref is set. metadata.version is
+# MAJOR.MINOR.PATCH, and it and the playbook ref are set together and match.
+# Set OFFLINE=1 to skip the lookup. MARKETPLACE_JSON checks another file, which
+# the tests use.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MKT="$ROOT/.claude-plugin/marketplace.json"
+MKT="${MARKETPLACE_JSON:-$ROOT/.claude-plugin/marketplace.json}"
 fail=0
 bad() { echo "FAIL $*"; fail=1; }
 jq empty "$MKT" 2>/dev/null || { echo "FAIL: marketplace.json is not valid JSON"; exit 1; }
@@ -18,6 +21,10 @@ if [ "$(jq -r '.name' "$MKT")" = "pragmatic-engineer" ]; then
   echo "PASS name is pragmatic-engineer"
 else
   bad "name must be pragmatic-engineer"
+fi
+mversion=$(jq -r '.metadata.version // empty' "$MKT")
+if [ -n "$mversion" ] && ! [[ "$mversion" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  bad "metadata.version must be MAJOR.MINOR.PATCH (got $mversion)"
 fi
 n=$(jq '.plugins | length' "$MKT")
 [ "$n" -ge 1 ] || bad "the marketplace lists no plugin"
@@ -39,24 +46,41 @@ while [ "$i" -lt "$n" ]; do
   if ! [[ "$path" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ ]] || [[ "/$path/" == *"/../"* ]]; then
     bad "$name path must be a relative path without .. (got ${path:-none})"; continue
   fi
-  if [ "$(jq "$p.source | has(\"ref\") or has(\"sha\")" "$MKT")" = true ] ||
+  if [ "$(jq "$p.source | has(\"sha\")" "$MKT")" = true ] ||
      [ "$(jq "$p | has(\"version\")" "$MKT")" = true ]; then
-    bad "$name must not set ref, sha or version"; continue
+    bad "$name must not set sha or version"; continue
   fi
-  echo "PASS $name source is git-subdir over https: $repo $path"
+  ref=$(jq -r "$p.source.ref // empty" "$MKT")
+  if [ "$(jq "$p.source | has(\"ref\")" "$MKT")" = true ] &&
+     ! [[ "$ref" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    bad "$name ref must be a release tag vX.Y.Z (got ${ref:-none})"; continue
+  fi
+  if [ "$name" = playbook ] && { [ -n "$ref" ] || [ -n "$mversion" ]; } && [ "$ref" != "v$mversion" ]; then
+    bad "the playbook ref (${ref:-none}) and metadata.version (${mversion:-none}) must be set together and match"
+  fi
+  echo "PASS $name source is git-subdir over https: $repo $path${ref:+ at $ref}"
   [ "${OFFLINE:-0}" = 1 ] && continue
   if ! command -v gh >/dev/null 2>&1; then
     bad "$name cannot be looked up: gh is not installed (set OFFLINE=1 to skip)"; continue
   fi
   errf=$(mktemp)
-  found=$(gh api -H "Accept: application/vnd.github.raw" \
-    "repos/$repo/contents/$path/.claude-plugin/plugin.json" 2>"$errf" | jq -r '.name // empty' 2>/dev/null)
+  manifest=$(gh api -H "Accept: application/vnd.github.raw" \
+    "repos/$repo/contents/$path/.claude-plugin/plugin.json${ref:+?ref=$ref}" 2>"$errf")
+  found=$(jq -r '.name // empty' <<<"$manifest" 2>/dev/null)
   err=$(tr '\n' ' ' <"$errf")
   rm -f "$errf"
-  if [ "$found" = "$name" ]; then
-    echo "PASS $name resolves: $repo/$path has a manifest with this name"
-  else
-    bad "$name does not resolve: $repo/$path/.claude-plugin/plugin.json has name '${found:-none}' ${err:+(gh said: $err)}"
+  if [ "$found" != "$name" ]; then
+    bad "$name does not resolve: $repo/$path/.claude-plugin/plugin.json${ref:+ at $ref} has name '${found:-none}' ${err:+(gh said: $err)}"
+    continue
+  fi
+  echo "PASS $name resolves: $repo/$path${ref:+ at $ref} has a manifest with this name"
+  if [ -n "$ref" ]; then
+    pversion=$(jq -r '.version // empty' <<<"$manifest" 2>/dev/null)
+    if [ "v$pversion" = "$ref" ]; then
+      echo "PASS $name at $ref carries version $pversion"
+    else
+      bad "$name at $ref carries version '${pversion:-none}', not ${ref#v}"
+    fi
   fi
 done
 exit "$fail"
