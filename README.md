@@ -11,11 +11,20 @@ claude plugin marketplace add pragmatic-engineer/marketplace
 claude plugin install playbook@pragmatic-engineer
 ```
 
-Claude Code v2.1.224 or later is recommended. The full install guide, including the binary and the `install.sh` script, is in the [playbook repository](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/00-install.md).
+The plugin works on its own. The `playbook` binary is optional and adds the hooks and the launcher. The recommended way to install it is the install script, which checks the SHA256 checksum of the release binary:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/pragmatic-engineer/playbook/main/install.sh | bash
+playbook setup
+```
+
+Homebrew works too: `brew install pragmatic-engineer/tap/playbook`.
+
+Claude Code v2.1.224 or later is recommended. The full install guide is in the [playbook repository](https://github.com/pragmatic-engineer/playbook/blob/main/docs/guides/00-install.md).
 
 ## How the listing works
 
-The `playbook` entry in `.claude-plugin/marketplace.json` is a `git-subdir` source: the url `https://github.com/pragmatic-engineer/playbook.git` and the path `plugins/playbook`. After the first release from the playbook release workflow, its `ref` pins a playbook release tag `vX.Y.Z`, and `metadata.version` carries the same version. Until then the entry follows the default branch. The binary and the plugin share one version line, so a pinned plugin always matches a released binary.
+The `playbook` entry in `.claude-plugin/marketplace.json` is a `git-subdir` source: the url `https://github.com/pragmatic-engineer/playbook.git` and the path `plugins/playbook`. Its `ref` pins a playbook release tag `vX.Y.Z`, and `metadata.version` carries the same version. The binary and the plugin share one version line, so a pinned plugin always matches a released binary.
 
 The playbook release workflow moves the pin. After it publishes and verifies `vX.Y.Z`, it opens a `release/vX.Y.Z` pull request here from the `igorjs[bot]` app and turns on auto-merge. When that pull request merges, the `release` workflow tags the merge commit `vX.Y.Z` and publishes a release with the notes `playbook vA -> vB`. It acts only on a merged pull request from the app on a `release/v*` branch. It mints an app token from the organization secrets `BOT_APP_CLIENT_ID` and `BOT_APP_PRIVATE_KEY`, since the tag ruleset lets only the app create `v` tags. Without those secrets it stops with a notice, and the playbook release workflow tags and releases through the API instead.
 
