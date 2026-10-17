@@ -14,7 +14,7 @@
         "source": "git-subdir",
         "url": "https://github.com/pragmatic-engineer/playbook.git",
         "path": "plugins/playbook",
-        "ref": "v0.35.0"
+        "ref": "v0.36.0"
       },
       "category": "workflow",
       "homepage": "https://github.com/pragmatic-engineer/playbook",
@@ -26,6 +26,6 @@
     }
   ],
   "metadata": {
-    "version": "0.35.0"
+    "version": "0.36.0"
   }
 }
