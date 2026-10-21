@@ -26,4 +26,4 @@ shell/check-marketplace.test.sh
 
 ## Releases
 
-The playbook release workflow pins the `playbook` entry to each release through a `release/vX.Y.Z` pull request, and the `release` workflow here tags and releases `vX.Y.Z` when it merges. The README explains both. Do not move the `ref` or `metadata.version` by hand, except to roll back a release, and do not add a `sha` or an entry `version`. The app key behind `BOT_APP_CLIENT_ID` and `BOT_APP_PRIVATE_KEY` is an organization secret, and an organization admin rotates it.
+The playbook release workflow pins the `playbook` entry to each release through a `release/vX.Y.Z` pull request, and the `release` workflow here tags and releases `vX.Y.Z` when it merges. [docs/how-the-listing-works.md](docs/how-the-listing-works.md) explains both. Do not move the `ref` or `metadata.version` by hand, except to roll back a release, and do not add a `sha` or an entry `version`. The app key behind `BOT_APP_CLIENT_ID` and `BOT_APP_PRIVATE_KEY` is an organization secret, and an organization admin rotates it.
